@@ -60,6 +60,7 @@ func TestGenerateReportFormats(t *testing.T) {
 			}
 			return []byte("Unknown format"), nil
 		},
+		htmlTemplateCache: &HTMLTemplateCache{},
 	}
 
 	// Test JSON format
@@ -232,11 +233,15 @@ func TestGenerateReports(t *testing.T) {
 		},
 	}
 
-	// Create a mock Reporter
+	// Create a mock Reporter that doesn't actually execute vegeta
 	mockReporter := &Reporter{
 		execCommand: func(_ string, args ...string) ([]byte, error) {
-			// Mock response for report command (used for metrics extraction)
-			if args[0] == "report" && args[1] == "-type=json" {
+			// Just return sample data based on the format
+			if len(args) == 0 {
+				return []byte("Unknown format"), nil
+			}
+
+			if args[0] == "report" {
 				return []byte(`{
 					"success": 0.995,
 					"latencies": {
@@ -256,6 +261,7 @@ func TestGenerateReports(t *testing.T) {
 			}
 			return []byte("Mocked response"), nil
 		},
+		htmlTemplateCache: &HTMLTemplateCache{},
 	}
 
 	// Generate reports

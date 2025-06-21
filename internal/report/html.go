@@ -24,9 +24,6 @@ type HTMLTemplateCache struct {
 	err      error
 }
 
-// templateCache is the package-level instance used by Reporter
-var templateCache HTMLTemplateCache
-
 // Get returns the parsed HTML template, initializing it if needed
 func (c *HTMLTemplateCache) Get() (*template.Template, error) {
 	c.once.Do(func() {
@@ -40,9 +37,9 @@ func (c *HTMLTemplateCache) Get() (*template.Template, error) {
 	return c.template, c.err
 }
 
-// getHTMLTemplate returns the parsed HTML template using the cache
-func getHTMLTemplate() (*template.Template, error) {
-	return templateCache.Get()
+// getHTMLTemplate returns the parsed HTML template from the reporter
+func (r *Reporter) getHTMLTemplate() (*template.Template, error) {
+	return r.htmlTemplateCache.Get()
 }
 
 // HTMLData contains data for HTML report template.
@@ -83,7 +80,7 @@ func (r *Reporter) GenerateHTMLReport(
 	}
 
 	// Get the cached template
-	tmpl, err := getHTMLTemplate()
+	tmpl, err := r.getHTMLTemplate()
 	if err != nil {
 		return "", err
 	}

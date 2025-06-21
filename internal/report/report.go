@@ -30,7 +30,8 @@ const (
 
 // Reporter generates reports from Vegeta output files.
 type Reporter struct {
-	execCommand func(cmd string, args ...string) ([]byte, error)
+	execCommand       func(cmd string, args ...string) ([]byte, error)
+	htmlTemplateCache *HTMLTemplateCache
 }
 
 // Result contains information about a generated report.
@@ -67,6 +68,7 @@ func NewReporter() *Reporter {
 		execCommand: func(cmd string, args ...string) ([]byte, error) {
 			return exec.Command(cmd, args...).CombinedOutput()
 		},
+		htmlTemplateCache: &HTMLTemplateCache{},
 	}
 }
 

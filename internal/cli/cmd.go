@@ -21,8 +21,8 @@ type VersionInfo struct {
 	BuildDate string
 }
 
-// CLIOptions contains command-line options and flags.
-type CLIOptions struct {
+// Options contains command-line options and flags.
+type Options struct {
 	CfgFile     string
 	Environment string
 	OutputDir   string
@@ -32,7 +32,7 @@ type CLIOptions struct {
 // App represents the CLI application.
 type App struct {
 	VersionInfo VersionInfo
-	Options     CLIOptions
+	Options     Options
 	viper       *viper.Viper
 }
 
@@ -44,7 +44,7 @@ func NewApp() *App {
 			Commit:    "none",
 			BuildDate: "unknown",
 		},
-		Options: CLIOptions{},
+		Options: Options{},
 		viper:   viper.New(),
 	}
 }
