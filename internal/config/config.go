@@ -1,4 +1,4 @@
-// Package config provides configuration loading and validation for galick load tests
+// Package config provides configuration loading and validation for galick load tests.
 package config
 
 import (
@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config represents the main configuration structure for galick
+// Config represents the main configuration structure for galick.
 type Config struct {
 	Default      Default                `mapstructure:"default"`
 	Environments map[string]Environment `mapstructure:"environments"`
@@ -19,39 +19,39 @@ type Config struct {
 	Hooks        Hooks                  `mapstructure:"hooks"`
 }
 
-// Default configuration
+// Default configuration.
 type Default struct {
 	Environment string `mapstructure:"environment"`
 	Scenario    string `mapstructure:"scenario"`
 	OutputDir   string `mapstructure:"output_dir,omitempty"`
 }
 
-// Environment configuration
+// Environment configuration.
 type Environment struct {
 	BaseURL string            `mapstructure:"base_url"`
 	Headers map[string]string `mapstructure:"headers"`
 }
 
-// Scenario configuration
+// Scenario configuration.
 type Scenario struct {
 	Rate     string   `mapstructure:"rate"`
 	Duration string   `mapstructure:"duration"`
 	Targets  []string `mapstructure:"targets"`
 }
 
-// Report configuration
+// Report configuration.
 type Report struct {
 	Formats    []string          `mapstructure:"formats"`
 	Thresholds map[string]string `mapstructure:"thresholds"`
 }
 
-// Hooks configuration
+// Hooks configuration.
 type Hooks struct {
 	Pre  string `mapstructure:"pre"`
 	Post string `mapstructure:"post"`
 }
 
-// LoadConfig loads configuration from a file
+// LoadConfig loads configuration from a file.
 func LoadConfig(configPath string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(configPath)
@@ -85,7 +85,7 @@ func LoadConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-// FindAndLoadConfig looks for a loadtest.yaml or loadtest.yml file and loads it
+// FindAndLoadConfig looks for a loadtest.yaml or loadtest.yml file and loads it.
 func FindAndLoadConfig(configPath string) (*Config, error) {
 	if configPath != "" {
 		return LoadConfig(configPath)
@@ -98,10 +98,13 @@ func FindAndLoadConfig(configPath string) (*Config, error) {
 		}
 	}
 
-	return nil, errors.New("config file not found: create a loadtest.yaml or loadtest.yml file in the current directory, or specify a path with --config")
+	return nil, errors.New(
+		"config file not found: create a loadtest.yaml or loadtest.yml file in the current directory, " +
+			"or specify a path with --config",
+	)
 }
 
-// Validate checks if the configuration is valid
+// Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
 	// Check if default environment and scenario are set
 	if c.Default.Environment == "" {
@@ -154,12 +157,12 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// GetOutputPath returns the output path for a specific environment and scenario
+// GetOutputPath returns the output path for a specific environment and scenario.
 func (c *Config) GetOutputPath(environment, scenario string) string {
 	return filepath.Join(c.Default.OutputDir, environment, scenario)
 }
 
-// GetEnvironment returns the environment with the given name, or the default environment if empty
+// GetEnvironment returns the environment with the given name, or the default environment if empty.
 func (c *Config) GetEnvironment(name string) (*Environment, error) {
 	if name == "" {
 		name = c.Default.Environment
@@ -173,7 +176,7 @@ func (c *Config) GetEnvironment(name string) (*Environment, error) {
 	return &env, nil
 }
 
-// GetScenario returns the scenario with the given name, or the default scenario if empty
+// GetScenario returns the scenario with the given name, or the default scenario if empty.
 func (c *Config) GetScenario(name string) (*Scenario, error) {
 	if name == "" {
 		name = c.Default.Scenario

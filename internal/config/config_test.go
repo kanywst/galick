@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestLoadConfig tests the basic config loading functionality
+// TestLoadConfig tests the basic config loading functionality.
 func TestLoadConfig(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
@@ -54,7 +54,7 @@ hooks:
   post: ./scripts/post-load.sh
 `
 	configPath := filepath.Join(tempDir, "loadtest.yaml")
-	err = os.WriteFile(configPath, []byte(yamlContent), 0644)
+	err = os.WriteFile(configPath, []byte(yamlContent), 0o600)
 	assert.NoError(t, err)
 
 	// Test loading the config
@@ -99,7 +99,7 @@ hooks:
 	assert.Equal(t, "./scripts/post-load.sh", cfg.Hooks.Post)
 }
 
-// TestDefaultConfigFile tests that the config can be loaded from the default locations
+// TestDefaultConfigFile tests that the config can be loaded from the default locations.
 func TestDefaultConfigFile(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
@@ -111,13 +111,18 @@ func TestDefaultConfigFile(t *testing.T) {
 	assert.NoError(t, err)
 	err = os.Chdir(tempDir)
 	assert.NoError(t, err)
-	defer os.Chdir(cwd)
+	defer func() {
+		err := os.Chdir(cwd)
+		if err != nil {
+			t.Errorf("Failed to change back to original directory: %v", err)
+		}
+	}()
 
 	// Create minimal YAML files
 	yamlContent := `default: {environment: dev, scenario: simple}`
 
 	// Test with loadtest.yaml
-	err = os.WriteFile("loadtest.yaml", []byte(yamlContent), 0644)
+	err = os.WriteFile("loadtest.yaml", []byte(yamlContent), 0o600)
 	assert.NoError(t, err)
 
 	// Add minimal environment and scenario sections for validation to pass
@@ -135,7 +140,7 @@ scenarios:
     targets:
       - GET /api/health
 `
-	err = os.WriteFile("loadtest.yaml", []byte(minimalYaml), 0644)
+	err = os.WriteFile("loadtest.yaml", []byte(minimalYaml), 0o600)
 	assert.NoError(t, err)
 
 	cfg, err := FindAndLoadConfig("")
@@ -146,7 +151,7 @@ scenarios:
 	os.Remove("loadtest.yaml")
 
 	// Test with loadtest.yml
-	err = os.WriteFile("loadtest.yml", []byte(minimalYaml), 0644)
+	err = os.WriteFile("loadtest.yml", []byte(minimalYaml), 0o600)
 	assert.NoError(t, err)
 
 	cfg, err = FindAndLoadConfig("")
@@ -154,7 +159,7 @@ scenarios:
 	assert.Equal(t, "dev", cfg.Default.Environment)
 }
 
-// TestConfigValidation tests that config validation works correctly
+// TestConfigValidation tests that config validation works correctly.
 func TestConfigValidation(t *testing.T) {
 	// Test case with missing required fields
 	invalidConfig := &Config{

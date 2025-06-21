@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestBuildVegetaCommand tests that the Vegeta command is correctly built
+// TestBuildVegetaCommand tests that the Vegeta command is correctly built.
 func TestBuildVegetaCommand(t *testing.T) {
 	// Create a test scenario and environment
 	scenario := &config.Scenario{
@@ -60,7 +60,7 @@ func TestBuildVegetaCommand(t *testing.T) {
 	assert.Contains(t, targetContent, "Authorization: Bearer token123")
 }
 
-// TestRunScenario tests the scenario execution (mock version)
+// TestRunScenario tests the scenario execution (mock version).
 func TestRunScenario(t *testing.T) {
 	// Create a mock config
 	cfg := &config.Config{
@@ -93,10 +93,10 @@ func TestRunScenario(t *testing.T) {
 
 	// Create a mock runner that doesn't actually execute commands
 	mockRunner := &Runner{
-		execCommand: func(cmd string, args ...string) ([]byte, error) {
+		execCommand: func(_ string, _ ...string) ([]byte, error) {
 			// Create a dummy results file to simulate successful execution
 			resultsFile := filepath.Join(tempDir, "results.bin")
-			err := os.WriteFile(resultsFile, []byte("mock vegeta binary data"), 0644)
+			err := os.WriteFile(resultsFile, []byte("mock vegeta binary data"), 0o600)
 			if err != nil {
 				return nil, err
 			}
@@ -111,7 +111,7 @@ func TestRunScenario(t *testing.T) {
 	assert.Equal(t, filepath.Join(tempDir, "results.bin"), result.OutputFile)
 }
 
-// TestRunPreHook tests the pre-hook execution
+// TestRunPreHook tests the pre-hook execution.
 func TestRunPreHook(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
@@ -147,7 +147,7 @@ exit 0
 	assert.Error(t, err)
 }
 
-// TestRunPostHook tests the post-hook execution
+// TestRunPostHook tests the post-hook execution.
 func TestRunPostHook(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestRunPreHook tests the execution of pre-hooks
+// TestRunPreHook tests the execution of pre-hooks.
 func TestRunPreHook(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
@@ -22,7 +22,7 @@ echo "Pre-hook executed"
 exit 0
 `
 	scriptPath := filepath.Join(tempDir, "pre-hook.sh")
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
 	assert.NoError(t, err)
 
 	// Create a mock config with hooks
@@ -57,7 +57,7 @@ exit 0
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// TestRunPostHook tests the execution of post-hooks
+// TestRunPostHook tests the execution of post-hooks.
 func TestRunPostHook(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")

@@ -1,7 +1,8 @@
-// Package report provides functionality for generating load test reports
+// Package report provides functionality for generating load test reports.
 package report
 
 import (
+	// embed is needed for HTML template embedding.
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -16,21 +17,30 @@ import (
 	"github.com/kanywst/galick/internal/config"
 )
 
-// HTML template is provided in html.go
+// Format constants.
+const (
+	FormatHTML     = "html"
+	FormatMarkdown = "markdown"
+	FormatJSON     = "json"
+	FormatText     = "text"
+)
 
-// Reporter generates reports from Vegeta output files
+// HTML template is provided in html.go.
+
+// Reporter generates reports from Vegeta output files.
 type Reporter struct {
 	execCommand func(cmd string, args ...string) ([]byte, error)
 }
 
-// ReportResult contains information about a generated report
+// ReportResult contains information about a generated report.
+// TODO: Rename this type to Result in the next major version to avoid stuttering.
 type ReportResult struct {
 	FilePath string
 	Format   string
 	Passed   bool
 }
 
-// Metrics represents the load test metrics
+// Metrics represents the load test metrics.
 type Metrics struct {
 	SuccessRate float64        `json:"success"`
 	Latencies   LatencyMetrics `json:"latencies"`
@@ -39,7 +49,7 @@ type Metrics struct {
 	Requests    int            `json:"requests"`
 }
 
-// LatencyMetrics represents latency metrics
+// LatencyMetrics represents latency metrics.
 type LatencyMetrics struct {
 	Min    int64 `json:"min"`
 	Mean   int64 `json:"mean"`
@@ -51,7 +61,7 @@ type LatencyMetrics struct {
 	StdDev int64 `json:"stdev"`
 }
 
-// NewReporter creates a new reporter instance
+// NewReporter creates a new reporter instance.
 func NewReporter() *Reporter {
 	return &Reporter{
 		execCommand: func(cmd string, args ...string) ([]byte, error) {
@@ -60,20 +70,14 @@ func NewReporter() *Reporter {
 	}
 }
 
-// GenerateReports generates all configured report formats
-func (r *Reporter) GenerateReports(resultFile, outputDir, scenario, environment string, cfg *config.Config) ([]ReportResult, error) {
+// GenerateReports generates all configured report formats.
+func (r *Reporter) GenerateReports(
+	resultFile, outputDir, scenario, environment string,
+	cfg *config.Config,
+) ([]ReportResult, error) {
 	// Validate input parameters
-	if resultFile == "" {
-		return nil, fmt.Errorf("result file path is empty")
-	}
-
-	if outputDir == "" {
-		return nil, fmt.Errorf("output directory path is empty")
-	}
-
-	// Check if result file exists
-	if _, err := os.Stat(resultFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("result file not found: %s", resultFile)
+	if err := r.validateReportInputs(resultFile, outputDir); err != nil {
+		return nil, err
 	}
 
 	// Extract metrics for threshold validation
@@ -83,19 +87,65 @@ func (r *Reporter) GenerateReports(resultFile, outputDir, scenario, environment 
 	}
 
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// Check which formats to generate
+	// Determine which formats to generate
+	formats := r.getReportFormats(cfg)
+
+	// Generate each format
+	results, err := r.generateBasicReports(resultFile, outputDir, formats, metrics, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Enhance rich format reports (markdown, HTML)
+	err = r.enhanceRichReports(results, scenario, environment, metrics, cfg.Report.Thresholds)
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+// validateReportInputs checks that required inputs are provided and valid.
+func (r *Reporter) validateReportInputs(resultFile, outputDir string) error {
+	if resultFile == "" {
+		return fmt.Errorf("result file path is empty")
+	}
+
+	if outputDir == "" {
+		return fmt.Errorf("output directory path is empty")
+	}
+
+	// Check if result file exists
+	if _, err := os.Stat(resultFile); os.IsNotExist(err) {
+		return fmt.Errorf("result file not found: %s", resultFile)
+	}
+
+	return nil
+}
+
+// getReportFormats returns the list of formats to generate.
+func (r *Reporter) getReportFormats(cfg *config.Config) []string {
 	formats := cfg.Report.Formats
 	if len(formats) == 0 {
 		// Default to text format if none specified
-		formats = []string{"text"}
+		formats = []string{FormatText}
 	}
+	return formats
+}
 
-	// Generate each format
+// generateBasicReports creates basic reports for each requested format.
+func (r *Reporter) generateBasicReports(
+	resultFile, outputDir string,
+	formats []string,
+	metrics *Metrics,
+	cfg *config.Config,
+) ([]ReportResult, error) {
 	results := make([]ReportResult, 0, len(formats))
+
 	for _, format := range formats {
 		outputFile := filepath.Join(outputDir, fmt.Sprintf("report.%s", formatExtension(format)))
 
@@ -117,34 +167,43 @@ func (r *Reporter) GenerateReports(resultFile, outputDir, scenario, environment 
 		})
 	}
 
-	// If markdown is one of the formats, add threshold annotations
+	return results, nil
+}
+
+// enhanceRichReports adds annotations to rich report formats like markdown and HTML.
+func (r *Reporter) enhanceRichReports(
+	results []ReportResult,
+	scenario, environment string,
+	metrics *Metrics,
+	thresholds map[string]string,
+) error {
 	for _, result := range results {
-		if result.Format == "markdown" {
+		if result.Format == FormatMarkdown {
 			// Generate markdown with threshold annotations
-			mdReport, err := r.GenerateMarkdownReport(scenario, environment, metrics, cfg.Report.Thresholds)
+			mdReport, err := r.GenerateMarkdownReport(scenario, environment, metrics, thresholds)
 			if err != nil {
-				return nil, fmt.Errorf("failed to generate markdown report: %w", err)
+				return fmt.Errorf("failed to generate markdown report: %w", err)
 			}
 
 			// Write the markdown report
-			if err := os.WriteFile(result.FilePath, []byte(mdReport), 0644); err != nil {
-				return nil, fmt.Errorf("failed to write markdown report: %w", err)
+			if err := os.WriteFile(result.FilePath, []byte(mdReport), 0o600); err != nil {
+				return fmt.Errorf("failed to write markdown report: %w", err)
 			}
-		} else if result.Format == "html" {
+		} else if result.Format == FormatHTML {
 			// Generate HTML with threshold annotations
-			htmlReport, err := r.GenerateHTMLReport(scenario, environment, metrics, cfg.Report.Thresholds)
+			htmlReport, err := r.GenerateHTMLReport(scenario, environment, metrics, thresholds)
 			if err != nil {
-				return nil, fmt.Errorf("failed to generate HTML report: %w", err)
+				return fmt.Errorf("failed to generate HTML report: %w", err)
 			}
 
 			// Write the HTML report
-			if err := os.WriteFile(result.FilePath, []byte(htmlReport), 0644); err != nil {
-				return nil, fmt.Errorf("failed to write HTML report: %w", err)
+			if err := os.WriteFile(result.FilePath, []byte(htmlReport), 0o600); err != nil {
+				return fmt.Errorf("failed to write HTML report: %w", err)
 			}
 		}
 	}
 
-	return results, nil
+	return nil
 }
 
 // GenerateReport generates a report in the specified format
@@ -154,14 +213,14 @@ func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics
 	var err error
 
 	// For markdown format, we handle it specially
-	if format == "markdown" && metrics != nil {
+	if format == FormatMarkdown && metrics != nil {
 		// Generate basic markdown (will be enhanced later in GenerateReports)
 		mdReport, err := r.GenerateMarkdownReport("", "", metrics, nil)
 		if err != nil {
 			return err
 		}
 		outputData = []byte(mdReport)
-	} else if format == "html" && metrics != nil {
+	} else if format == FormatHTML && metrics != nil {
 		// Generate HTML report
 		htmlReport, err := r.GenerateHTMLReport("", "", metrics, nil)
 		if err != nil {
@@ -173,7 +232,7 @@ func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics
 		args = []string{"report"}
 
 		// Add format flag for non-text formats
-		if format != "text" {
+		if format != FormatText {
 			args = append(args, "-type="+format)
 		}
 
@@ -188,26 +247,52 @@ func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics
 	}
 
 	// Write the report to file
-	if err := os.WriteFile(outputFile, outputData, 0644); err != nil {
+	if err := os.WriteFile(outputFile, outputData, 0o600); err != nil {
 		return fmt.Errorf("failed to write report file: %w", err)
 	}
 
 	return nil
 }
 
-// CheckThresholds validates metrics against configured thresholds
+// CheckThresholds validates metrics against configured thresholds.
 func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]string) (bool, error) {
-	if metrics == nil || len(thresholds) == 0 {
+	if metrics == nil {
+		return true, nil
+	}
+
+	if len(thresholds) == 0 {
 		return true, nil
 	}
 
 	violations := make([]string, 0)
 
-	// Check success rate
+	// Check different threshold types
+	successRateViolations := r.checkSuccessRate(metrics, thresholds)
+	violations = append(violations, successRateViolations...)
+
+	latencyViolations := r.checkLatencyThresholds(metrics, thresholds)
+	violations = append(violations, latencyViolations...)
+
+	errorRateViolations := r.checkErrorRate(metrics, thresholds)
+	violations = append(violations, errorRateViolations...)
+
+	if len(violations) > 0 {
+		return false, fmt.Errorf("threshold violations: %s", strings.Join(violations, ", "))
+	}
+
+	return true, nil
+}
+
+// checkSuccessRate validates the success rate against its threshold.
+func (r *Reporter) checkSuccessRate(metrics *Metrics, thresholds map[string]string) []string {
+	var violations []string
+
 	if successRateThreshold, exists := thresholds["success_rate"]; exists {
 		threshold, err := strconv.ParseFloat(successRateThreshold, 64)
 		if err != nil {
-			return false, fmt.Errorf("invalid success_rate threshold value: %s", successRateThreshold)
+			violations = append(violations,
+				fmt.Sprintf("invalid success_rate threshold value: %s", successRateThreshold))
+			return violations
 		}
 
 		if metrics.SuccessRate*100 < threshold {
@@ -216,10 +301,17 @@ func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]strin
 		}
 	}
 
-	// Check latency thresholds
+	return violations
+}
+
+// checkLatencyThresholds validates various latency metrics against their thresholds.
+func (r *Reporter) checkLatencyThresholds(metrics *Metrics, thresholds map[string]string) []string {
+	var violations []string
+
 	for metric, thresholdStr := range thresholds {
 		var latencyNs int64
 		var actualValue float64
+		validMetric := true
 
 		switch metric {
 		case "p50", "50th":
@@ -241,17 +333,23 @@ func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]strin
 			latencyNs = metrics.Latencies.Max
 			actualValue = float64(latencyNs) / 1000000
 		case "success_rate", "error_rate":
-			// Already handled or will be handled separately
-			continue
+			// Handled separately
+			validMetric = false
 		default:
 			// Skip unknown metrics
+			validMetric = false
+		}
+
+		if !validMetric {
 			continue
 		}
 
 		// Parse threshold value (convert from "200ms" to milliseconds)
 		thresholdValue, err := parseLatencyThreshold(thresholdStr)
 		if err != nil {
-			return false, fmt.Errorf("invalid threshold for %s: %s", metric, err)
+			violations = append(violations,
+				fmt.Sprintf("invalid threshold for %s: %s", metric, err))
+			continue
 		}
 
 		// Compare actual value to threshold
@@ -261,11 +359,19 @@ func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]strin
 		}
 	}
 
-	// Check error rate threshold
+	return violations
+}
+
+// checkErrorRate validates the error rate against its threshold.
+func (r *Reporter) checkErrorRate(metrics *Metrics, thresholds map[string]string) []string {
+	var violations []string
+
 	if errorRateThreshold, exists := thresholds["error_rate"]; exists {
 		threshold, err := strconv.ParseFloat(errorRateThreshold, 64)
 		if err != nil {
-			return false, fmt.Errorf("invalid error_rate threshold value: %s", errorRateThreshold)
+			violations = append(violations,
+				fmt.Sprintf("invalid error_rate threshold value: %s", errorRateThreshold))
+			return violations
 		}
 
 		errorRate := (1 - metrics.SuccessRate) * 100
@@ -275,15 +381,15 @@ func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]strin
 		}
 	}
 
-	if len(violations) > 0 {
-		return false, fmt.Errorf("threshold violations: %s", strings.Join(violations, ", "))
-	}
-
-	return true, nil
+	return violations
 }
 
-// GenerateMarkdownReport generates a markdown report with threshold annotations
-func (r *Reporter) GenerateMarkdownReport(scenario, environment string, metrics *Metrics, thresholds map[string]string) (string, error) {
+// GenerateMarkdownReport generates a markdown report with threshold annotations.
+func (r *Reporter) GenerateMarkdownReport(
+	scenario, environment string,
+	metrics *Metrics,
+	thresholds map[string]string,
+) (string, error) {
 	// Define the markdown template
 	const mdTemplate = `# Load Test Report
 
@@ -324,7 +430,7 @@ func (r *Reporter) GenerateMarkdownReport(scenario, environment string, metrics 
 
 	// Check thresholds and collect violations
 	var violations []string
-	if thresholds != nil && len(thresholds) > 0 {
+	if len(thresholds) > 0 {
 		_, err := r.CheckThresholds(metrics, thresholds)
 		if err != nil {
 			// Extract the violations from the error message

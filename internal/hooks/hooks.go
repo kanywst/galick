@@ -1,4 +1,4 @@
-// Package hooks provides functionality for executing pre and post hooks
+// Package hooks provides functionality for executing pre and post hooks.
 package hooks
 
 import (
@@ -10,12 +10,12 @@ import (
 	"github.com/kanywst/galick/internal/config"
 )
 
-// HookRunner executes pre and post hooks
+// HookRunner executes pre and post hooks.
 type HookRunner struct {
 	execCommand func(command string, args ...string) ([]byte, error)
 }
 
-// NewHookRunner creates a new hook runner
+// NewHookRunner creates a new hook runner.
 func NewHookRunner() *HookRunner {
 	return &HookRunner{
 		execCommand: func(command string, args ...string) ([]byte, error) {
@@ -24,7 +24,7 @@ func NewHookRunner() *HookRunner {
 	}
 }
 
-// RunPreHook executes the pre-hook script if configured
+// RunPreHook executes the pre-hook script if configured.
 func (h *HookRunner) RunPreHook(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
@@ -46,7 +46,7 @@ func (h *HookRunner) RunPreHook(cfg *config.Config) error {
 	}
 
 	// On Unix systems, check if the script is executable
-	if info.Mode()&0111 == 0 {
+	if info.Mode()&0o111 == 0 {
 		return fmt.Errorf("pre-hook script is not executable: %s", cfg.Hooks.Pre)
 	}
 
@@ -58,7 +58,7 @@ func (h *HookRunner) RunPreHook(cfg *config.Config) error {
 	return nil
 }
 
-// RunPostHook executes the post-hook script if configured
+// RunPostHook executes the post-hook script if configured.
 func (h *HookRunner) RunPostHook(cfg *config.Config, exitCode int) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
@@ -80,7 +80,7 @@ func (h *HookRunner) RunPostHook(cfg *config.Config, exitCode int) error {
 	}
 
 	// On Unix systems, check if the script is executable
-	if info.Mode()&0111 == 0 {
+	if info.Mode()&0o111 == 0 {
 		return fmt.Errorf("post-hook script is not executable: %s", cfg.Hooks.Post)
 	}
 

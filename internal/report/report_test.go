@@ -42,7 +42,7 @@ func TestGenerateReportFormats(t *testing.T) {
 
 	// Create a mock Reporter that doesn't actually execute vegeta
 	mockReporter := &Reporter{
-		execCommand: func(cmd string, args ...string) ([]byte, error) {
+		execCommand: func(_ string, args ...string) ([]byte, error) {
 			// Just return sample data based on the format
 			if len(args) > 0 {
 				switch args[0] {
@@ -232,7 +232,7 @@ func TestGenerateReports(t *testing.T) {
 
 	// Create a mock Reporter
 	mockReporter := &Reporter{
-		execCommand: func(cmd string, args ...string) ([]byte, error) {
+		execCommand: func(_ string, args ...string) ([]byte, error) {
 			// Mock response for report command (used for metrics extraction)
 			if args[0] == "report" && args[1] == "-type=json" {
 				return []byte(`{

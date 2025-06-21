@@ -14,7 +14,7 @@ import (
 //go:embed templates/html_report.tmpl
 var htmlReportTemplate string
 
-// HTMLData contains data for HTML report template
+// HTMLData contains data for HTML report template.
 type HTMLData struct {
 	Environment          string
 	Scenario             string
@@ -33,7 +33,7 @@ type HTMLData struct {
 	ThresholdResults     []ThresholdResult
 }
 
-// ThresholdResult represents a single threshold check result
+// ThresholdResult represents a single threshold check result.
 type ThresholdResult struct {
 	Metric    string
 	Threshold string
@@ -41,8 +41,12 @@ type ThresholdResult struct {
 	Passed    bool
 }
 
-// GenerateHTMLReport creates an HTML report from the metrics and thresholds
-func (r *Reporter) GenerateHTMLReport(scenario, environment string, metrics *Metrics, thresholds map[string]string) (string, error) {
+// GenerateHTMLReport creates an HTML report from the metrics and thresholds.
+func (r *Reporter) GenerateHTMLReport(
+	scenario, environment string,
+	metrics *Metrics,
+	thresholds map[string]string,
+) (string, error) {
 	if metrics == nil {
 		return "", fmt.Errorf("metrics are nil")
 	}
@@ -155,14 +159,17 @@ func (r *Reporter) GenerateHTMLReport(scenario, environment string, metrics *Met
 	return buf.String(), nil
 }
 
-// parseThresholdValue parses a threshold value string
+// parseThresholdValue parses a threshold value string.
 func parseThresholdValue(value string) (float64, error) {
 	// Try to parse as a float
 	return parseLatencyThreshold(value)
 }
 
-// SaveHTMLReport generates and saves an HTML report for a test result
-func (r *Reporter) SaveHTMLReport(resultFile, outputPath, scenario, environment string, thresholds map[string]string) (string, error) {
+// SaveHTMLReport generates and saves an HTML report for a test result.
+func (r *Reporter) SaveHTMLReport(
+	resultFile, outputPath, scenario, environment string,
+	thresholds map[string]string,
+) (string, error) {
 	// Extract metrics from the result file
 	metrics, err := r.extractMetrics(resultFile)
 	if err != nil {
@@ -177,12 +184,12 @@ func (r *Reporter) SaveHTMLReport(resultFile, outputPath, scenario, environment 
 
 	// Ensure output directory exists
 	outputDir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Write the HTML to file
-	if err := os.WriteFile(outputPath, []byte(html), 0644); err != nil {
+	if err := os.WriteFile(outputPath, []byte(html), 0o600); err != nil {
 		return "", fmt.Errorf("failed to write HTML report: %w", err)
 	}
 

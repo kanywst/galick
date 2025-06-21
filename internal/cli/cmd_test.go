@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestVersionCommand tests the version command
+// TestVersionCommand tests the version command.
 func TestVersionCommand(t *testing.T) {
 	// Create a buffer to capture command output
 	var buf bytes.Buffer
@@ -32,7 +32,7 @@ func TestVersionCommand(t *testing.T) {
 	assert.Contains(t, output, "galick version")
 }
 
-// TestInitCommand tests the init command
+// TestInitCommand tests the init command.
 func TestInitCommand(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
@@ -46,7 +46,12 @@ func TestInitCommand(t *testing.T) {
 	// Change to the temporary directory
 	err = os.Chdir(tempDir)
 	assert.NoError(t, err)
-	defer os.Chdir(cwd)
+	defer func() {
+		err := os.Chdir(cwd)
+		if err != nil {
+			t.Errorf("Failed to change back to original directory: %v", err)
+		}
+	}()
 
 	// Create a buffer to capture command output
 	var buf bytes.Buffer
@@ -62,7 +67,10 @@ func TestInitCommand(t *testing.T) {
 	oldStdin := os.Stdin
 	r, w, _ := os.Pipe()
 	os.Stdin = r
-	w.Write([]byte("y\n"))
+	_, err = w.Write([]byte("y\n"))
+	if err != nil {
+		t.Errorf("Failed to write to pipe: %v", err)
+	}
 	w.Close()
 	defer func() { os.Stdin = oldStdin }()
 
@@ -83,7 +91,7 @@ func TestInitCommand(t *testing.T) {
 	assert.Contains(t, output, "Created config file")
 }
 
-// TestRootCommand tests the root command
+// TestRootCommand tests the root command.
 func TestRootCommand(t *testing.T) {
 	// Create a buffer to capture command output
 	var buf bytes.Buffer
@@ -103,7 +111,7 @@ func TestRootCommand(t *testing.T) {
 	assert.Contains(t, output, "Available Commands")
 }
 
-// TestRunCommand tests the run command (minimal test)
+// TestRunCommand tests the run command (minimal test).
 func TestRunCommand(t *testing.T) {
 	// This is a minimal test that just checks command creation
 	// A full test would require mocking the runner and config
