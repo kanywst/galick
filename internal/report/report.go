@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kanywst/galick/internal/config"
+	gerrors "github.com/kanywst/galick/internal/errors"
 )
 
 // Format constants.
@@ -32,9 +33,8 @@ type Reporter struct {
 	execCommand func(cmd string, args ...string) ([]byte, error)
 }
 
-// ReportResult contains information about a generated report.
-// TODO: Rename this type to Result in the next major version to avoid stuttering.
-type ReportResult struct {
+// Result contains information about a generated report.
+type Result struct {
 	FilePath string
 	Format   string
 	Passed   bool
@@ -74,7 +74,7 @@ func NewReporter() *Reporter {
 func (r *Reporter) GenerateReports(
 	resultFile, outputDir, scenario, environment string,
 	cfg *config.Config,
-) ([]ReportResult, error) {
+) ([]Result, error) {
 	// Validate input parameters
 	if err := r.validateReportInputs(resultFile, outputDir); err != nil {
 		return nil, err
@@ -112,16 +112,16 @@ func (r *Reporter) GenerateReports(
 // validateReportInputs checks that required inputs are provided and valid.
 func (r *Reporter) validateReportInputs(resultFile, outputDir string) error {
 	if resultFile == "" {
-		return fmt.Errorf("result file path is empty")
+		return gerrors.ErrResultFileEmpty
 	}
 
 	if outputDir == "" {
-		return fmt.Errorf("output directory path is empty")
+		return gerrors.ErrOutputDirEmpty
 	}
 
 	// Check if result file exists
 	if _, err := os.Stat(resultFile); os.IsNotExist(err) {
-		return fmt.Errorf("result file not found: %s", resultFile)
+		return gerrors.WithResultFileNotFoundDetails(resultFile)
 	}
 
 	return nil
@@ -143,8 +143,8 @@ func (r *Reporter) generateBasicReports(
 	formats []string,
 	metrics *Metrics,
 	cfg *config.Config,
-) ([]ReportResult, error) {
-	results := make([]ReportResult, 0, len(formats))
+) ([]Result, error) {
+	results := make([]Result, 0, len(formats))
 
 	for _, format := range formats {
 		outputFile := filepath.Join(outputDir, fmt.Sprintf("report.%s", formatExtension(format)))
@@ -160,7 +160,7 @@ func (r *Reporter) generateBasicReports(
 			passed, _ = r.CheckThresholds(metrics, cfg.Report.Thresholds)
 		}
 
-		results = append(results, ReportResult{
+		results = append(results, Result{
 			FilePath: outputFile,
 			Format:   format,
 			Passed:   passed,
@@ -172,7 +172,7 @@ func (r *Reporter) generateBasicReports(
 
 // enhanceRichReports adds annotations to rich report formats like markdown and HTML.
 func (r *Reporter) enhanceRichReports(
-	results []ReportResult,
+	results []Result,
 	scenario, environment string,
 	metrics *Metrics,
 	thresholds map[string]string,
@@ -277,7 +277,7 @@ func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]strin
 	violations = append(violations, errorRateViolations...)
 
 	if len(violations) > 0 {
-		return false, fmt.Errorf("threshold violations: %s", strings.Join(violations, ", "))
+		return false, gerrors.WithThresholdViolationDetails(violations)
 	}
 
 	return true, nil
@@ -551,7 +551,7 @@ func parseLatencyThreshold(threshold string) (float64, error) {
 	if strings.HasSuffix(threshold, "ms") {
 		value, err := strconv.ParseFloat(strings.TrimSuffix(threshold, "ms"), 64)
 		if err != nil {
-			return 0, fmt.Errorf("invalid value for milliseconds: %s", threshold)
+			return 0, gerrors.WithInvalidMsValueDetails(threshold)
 		}
 		return value, nil
 	}
@@ -559,10 +559,10 @@ func parseLatencyThreshold(threshold string) (float64, error) {
 	if strings.HasSuffix(threshold, "s") {
 		value, err := strconv.ParseFloat(strings.TrimSuffix(threshold, "s"), 64)
 		if err != nil {
-			return 0, fmt.Errorf("invalid value for seconds: %s", threshold)
+			return 0, gerrors.WithInvalidSecValueDetails(threshold)
 		}
 		return value * 1000, nil // Convert seconds to milliseconds
 	}
 
-	return 0, fmt.Errorf("unknown latency unit in threshold: %s", threshold)
+	return 0, gerrors.WithUnknownLatencyUnitDetails(threshold)
 }

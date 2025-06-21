@@ -72,7 +72,7 @@ func executeScenario(r *runner.Runner, cfg *config.Config, params *runParameters
 
 	// Generate reports
 	_, _ = fmt.Println("Generating reports...")
-	reportResults, err := reporter.GenerateReports(
+	results, err := reporter.GenerateReports(
 		result.OutputFile,
 		params.outputDir,
 		params.scenarioName,
@@ -86,7 +86,7 @@ func executeScenario(r *runner.Runner, cfg *config.Config, params *runParameters
 
 	// Display report results and check for threshold violations
 	exitCode := 0
-	for _, report := range reportResults {
+	for _, report := range results {
 		if !report.Passed {
 			_, _ = fmt.Printf("⚠️ Threshold violations detected in %s report\n", report.Format)
 			if ciMode {

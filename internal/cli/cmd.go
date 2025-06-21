@@ -291,7 +291,7 @@ func newReportCmd() *cobra.Command {
 
 			// Otherwise generate all configured report formats
 			_, _ = fmt.Println("Generating reports...")
-			reportResults, err := reporter.GenerateReports(
+			results, err := reporter.GenerateReports(
 				resultsFile,
 				reportDir,
 				"", // scenario name not used for standalone reports
@@ -306,7 +306,7 @@ func newReportCmd() *cobra.Command {
 
 			// Display report results
 			exitCode := 0
-			for _, report := range reportResults {
+			for _, report := range results {
 				if !report.Passed {
 					_, _ = fmt.Printf("⚠️ Threshold violations detected in %s report\n", report.Format)
 					if ciMode {

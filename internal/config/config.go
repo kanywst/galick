@@ -2,11 +2,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	gerrors "github.com/kanywst/galick/internal/errors"
 	"github.com/spf13/viper"
 )
 
@@ -98,59 +98,56 @@ func FindAndLoadConfig(configPath string) (*Config, error) {
 		}
 	}
 
-	return nil, errors.New(
-		"config file not found: create a loadtest.yaml or loadtest.yml file in the current directory, " +
-			"or specify a path with --config",
-	)
+	return nil, gerrors.WithConfigNotFoundDetails()
 }
 
 // Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
 	// Check if default environment and scenario are set
 	if c.Default.Environment == "" {
-		return errors.New("default environment is not set")
+		return gerrors.ErrDefaultEnvNotSet
 	}
 	if c.Default.Scenario == "" {
-		return errors.New("default scenario is not set")
+		return gerrors.ErrDefaultScenarioNotSet
 	}
 
 	// Check if environments are defined
 	if len(c.Environments) == 0 {
-		return errors.New("no environments defined in configuration")
+		return gerrors.ErrNoEnvironmentsDefined
 	}
 
 	// Check if scenarios are defined
 	if len(c.Scenarios) == 0 {
-		return errors.New("no scenarios defined in configuration")
+		return gerrors.ErrNoScenariosDefined
 	}
 
 	// Check if the default environment exists
 	if _, exists := c.Environments[c.Default.Environment]; !exists {
-		return fmt.Errorf("default environment '%s' does not exist in the environments section", c.Default.Environment)
+		return gerrors.WithDefaultEnvDetails(c.Default.Environment)
 	}
 
 	// Check if the default scenario exists
 	if _, exists := c.Scenarios[c.Default.Scenario]; !exists {
-		return fmt.Errorf("default scenario '%s' does not exist in the scenarios section", c.Default.Scenario)
+		return gerrors.WithDefaultScenarioDetails(c.Default.Scenario)
 	}
 
 	// Validate environments
 	for name, env := range c.Environments {
 		if env.BaseURL == "" {
-			return fmt.Errorf("environment '%s' is missing a base_url", name)
+			return gerrors.WithEnvMissingBaseURLDetails(name)
 		}
 	}
 
 	// Validate scenarios
 	for name, scenario := range c.Scenarios {
 		if scenario.Rate == "" {
-			return fmt.Errorf("scenario '%s' is missing a rate", name)
+			return gerrors.WithScenarioMissingRateDetails(name)
 		}
 		if scenario.Duration == "" {
-			return fmt.Errorf("scenario '%s' is missing a duration", name)
+			return gerrors.WithScenarioMissingDurationDetails(name)
 		}
 		if len(scenario.Targets) == 0 {
-			return fmt.Errorf("scenario '%s' has no targets defined", name)
+			return gerrors.WithScenarioNoTargetsDetails(name)
 		}
 	}
 
@@ -170,7 +167,7 @@ func (c *Config) GetEnvironment(name string) (*Environment, error) {
 
 	env, exists := c.Environments[name]
 	if !exists {
-		return nil, fmt.Errorf("environment '%s' not found", name)
+		return nil, gerrors.WithEnvNotFoundDetails(name)
 	}
 
 	return &env, nil
@@ -184,7 +181,7 @@ func (c *Config) GetScenario(name string) (*Scenario, error) {
 
 	scenario, exists := c.Scenarios[name]
 	if !exists {
-		return nil, fmt.Errorf("scenario '%s' not found", name)
+		return nil, gerrors.WithScenarioNotFoundDetails(name)
 	}
 
 	return &scenario, nil

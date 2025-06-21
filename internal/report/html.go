@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	gerrors "github.com/kanywst/galick/internal/errors"
 )
 
 //go:embed templates/html_report.tmpl
@@ -48,7 +50,7 @@ func (r *Reporter) GenerateHTMLReport(
 	thresholds map[string]string,
 ) (string, error) {
 	if metrics == nil {
-		return "", fmt.Errorf("metrics are nil")
+		return "", gerrors.ErrMetricsNil
 	}
 
 	// Parse the template
@@ -62,73 +64,24 @@ func (r *Reporter) GenerateHTMLReport(
 	thresholdResults := []ThresholdResult{}
 
 	// Success Rate
-	successRateThreshold := ""
-	successRateStatus := true
-	if val, ok := thresholds["success_rate"]; ok {
-		threshold, err := parseThresholdValue(val)
-		if err == nil {
-			successRateThreshold = val
-			actual := metrics.SuccessRate * 100
-			if actual < threshold {
-				successRateStatus = false
-				passed = false
-			}
-			thresholdResults = append(thresholdResults, ThresholdResult{
-				Metric:    "Success Rate",
-				Threshold: fmt.Sprintf("%.1f%%", threshold),
-				Actual:    fmt.Sprintf("%.1f%%", actual),
-				Passed:    successRateStatus,
-			})
-		}
+	successRateThreshold, successRateStatus, successRateResult := r.checkSuccessRateThreshold(metrics, thresholds)
+	thresholdResults = append(thresholdResults, successRateResult)
+	if !successRateStatus {
+		passed = false
 	}
 
 	// P95 Latency
-	p95Threshold := ""
-	p95Status := true
-	if val, ok := thresholds["p95"]; ok {
-		threshold, err := parseLatencyThreshold(val)
-		if err == nil {
-			p95Threshold = val
-			actual := float64(metrics.Latencies.P95) / 1000000 // ns to ms
-			if actual > threshold {
-				p95Status = false
-				passed = false
-			}
-			thresholdResults = append(thresholdResults, ThresholdResult{
-				Metric:    "P95 Latency",
-				Threshold: val,
-				Actual:    fmt.Sprintf("%.0fms", actual),
-				Passed:    p95Status,
-			})
-		}
+	p95Threshold, p95Status, p95Result := r.checkP95LatencyThreshold(metrics, thresholds)
+	thresholdResults = append(thresholdResults, p95Result)
+	if !p95Status {
+		passed = false
 	}
 
 	// Other latency thresholds
-	latencyMetrics := map[string]int64{
-		"p50":  metrics.Latencies.P50,
-		"p90":  metrics.Latencies.P90,
-		"p99":  metrics.Latencies.P99,
-		"mean": metrics.Latencies.Mean,
-		"max":  metrics.Latencies.Max,
-	}
-
-	for metric, value := range latencyMetrics {
-		if val, ok := thresholds[metric]; ok && metric != "p95" { // p95 already handled
-			threshold, err := parseLatencyThreshold(val)
-			if err == nil {
-				actual := float64(value) / 1000000 // ns to ms
-				metricPassed := actual <= threshold
-				if !metricPassed {
-					passed = false
-				}
-				thresholdResults = append(thresholdResults, ThresholdResult{
-					Metric:    strings.ToUpper(metric) + " Latency",
-					Threshold: val,
-					Actual:    fmt.Sprintf("%.0fms", actual),
-					Passed:    metricPassed,
-				})
-			}
-		}
+	otherThresholdResults, allPassed := r.checkOtherLatencyThresholds(metrics, thresholds)
+	thresholdResults = append(thresholdResults, otherThresholdResults...)
+	if !allPassed {
+		passed = false
 	}
 
 	// Prepare template data
@@ -157,6 +110,102 @@ func (r *Reporter) GenerateHTMLReport(
 	}
 
 	return buf.String(), nil
+}
+
+// checkSuccessRateThreshold checks the success rate against its threshold.
+func (r *Reporter) checkSuccessRateThreshold(
+	metrics *Metrics,
+	thresholds map[string]string,
+) (string, bool, ThresholdResult) {
+	successRateThreshold := ""
+	successRateStatus := true
+	var thresholdResult ThresholdResult
+
+	if val, ok := thresholds["success_rate"]; ok {
+		threshold, err := parseThresholdValue(val)
+		if err == nil {
+			successRateThreshold = val
+			actual := metrics.SuccessRate * 100
+			if actual < threshold {
+				successRateStatus = false
+			}
+			thresholdResult = ThresholdResult{
+				Metric:    "Success Rate",
+				Threshold: fmt.Sprintf("%.1f%%", threshold),
+				Actual:    fmt.Sprintf("%.1f%%", actual),
+				Passed:    successRateStatus,
+			}
+		}
+	}
+
+	return successRateThreshold, successRateStatus, thresholdResult
+}
+
+// checkP95LatencyThreshold checks the P95 latency against its threshold.
+func (r *Reporter) checkP95LatencyThreshold(
+	metrics *Metrics,
+	thresholds map[string]string,
+) (string, bool, ThresholdResult) {
+	p95Threshold := ""
+	p95Status := true
+	var thresholdResult ThresholdResult
+
+	if val, ok := thresholds["p95"]; ok {
+		threshold, err := parseLatencyThreshold(val)
+		if err == nil {
+			p95Threshold = val
+			actual := float64(metrics.Latencies.P95) / 1000000 // ns to ms
+			if actual > threshold {
+				p95Status = false
+			}
+			thresholdResult = ThresholdResult{
+				Metric:    "P95 Latency",
+				Threshold: val,
+				Actual:    fmt.Sprintf("%.0fms", actual),
+				Passed:    p95Status,
+			}
+		}
+	}
+
+	return p95Threshold, p95Status, thresholdResult
+}
+
+// checkOtherLatencyThresholds checks other latency metrics against their thresholds.
+func (r *Reporter) checkOtherLatencyThresholds(
+	metrics *Metrics,
+	thresholds map[string]string,
+) ([]ThresholdResult, bool) {
+	thresholdResults := []ThresholdResult{}
+	allPassed := true
+
+	latencyMetrics := map[string]int64{
+		"p50":  metrics.Latencies.P50,
+		"p90":  metrics.Latencies.P90,
+		"p99":  metrics.Latencies.P99,
+		"mean": metrics.Latencies.Mean,
+		"max":  metrics.Latencies.Max,
+	}
+
+	for metric, value := range latencyMetrics {
+		if val, ok := thresholds[metric]; ok && metric != "p95" { // p95 already handled
+			threshold, err := parseLatencyThreshold(val)
+			if err == nil {
+				actual := float64(value) / 1000000 // ns to ms
+				metricPassed := actual <= threshold
+				if !metricPassed {
+					allPassed = false
+				}
+				thresholdResults = append(thresholdResults, ThresholdResult{
+					Metric:    strings.ToUpper(metric) + " Latency",
+					Threshold: val,
+					Actual:    fmt.Sprintf("%.0fms", actual),
+					Passed:    metricPassed,
+				})
+			}
+		}
+	}
+
+	return thresholdResults, allPassed
 }
 
 // parseThresholdValue parses a threshold value string.

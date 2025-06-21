@@ -2,6 +2,7 @@
 package runner
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/kanywst/galick/internal/config"
+	gerrors "github.com/kanywst/galick/internal/errors"
 )
 
 // Runner executes load test scenarios.
@@ -65,26 +67,23 @@ func (r *Runner) RunScenario(cfg *config.Config, scenarioName, environmentName, 
 	// Execute the command.
 	output, err := r.execCommand(cmd.Path, cmd.Args[1:]...)
 	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("vegeta attack failed with exit code %d: %s", exitError.ExitCode(), string(output))
+		switch {
+		case r.isExitError(err):
+			var exitErr *exec.ExitError
+			errors.As(err, &exitErr)
+			return nil, fmt.Errorf("%w with exit code %d: %s", gerrors.ErrVegetaAttackFailed, exitErr.ExitCode(), string(output))
+		case r.isCommandNotFound(err):
+			return nil, gerrors.ErrVegetaNotFound
+		case r.isPermissionDenied(string(output)):
+			return nil, gerrors.ErrVegetaNotExec
+		default:
+			return nil, fmt.Errorf("%w: %v\n%s", gerrors.ErrVegetaAttackFailed, err, string(output))
 		}
-		// Check if the command wasn't found.
-		if strings.Contains(err.Error(), "executable file not found") {
-			return nil, fmt.Errorf(
-				"vegeta command not found. Please install Vegeta " +
-					"(https://github.com/tsenart/vegeta) and make sure it's in your PATH",
-			)
-		}
-		// Check if output contains permission denied.
-		if strings.Contains(string(output), "permission denied") {
-			return nil, fmt.Errorf("permission denied when executing vegeta. Make sure vegeta is executable")
-		}
-		return nil, fmt.Errorf("vegeta attack failed: %w\n%s", err, string(output))
 	}
 
 	// Check if output file was created.
 	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("output file was not created, vegeta may have failed silently")
+		return nil, gerrors.ErrOutputNotCreated
 	}
 
 	return &Result{
@@ -133,72 +132,111 @@ func (r *Runner) createTargetsFile(targets []string, environment *config.Environ
 
 	// Validate environment.
 	if environment.BaseURL == "" {
-		return "", fmt.Errorf("environment base URL is empty")
+		return "", gerrors.ErrEnvironmentBaseURLEmpty
 	}
 
 	// Write targets to the file.
 	for i, target := range targets {
-		parts := strings.SplitN(target, " ", 2)
-		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid target format at index %d: %s (expected 'METHOD /path')", i, target)
-		}
-
-		method := parts[0]
-		path := parts[1]
-
-		// Validate method.
-		method = strings.ToUpper(method)
-		validMethods := map[string]bool{
-			"GET":     true,
-			"POST":    true,
-			"PUT":     true,
-			"DELETE":  true,
-			"PATCH":   true,
-			"HEAD":    true,
-			"OPTIONS": true,
-		}
-		if !validMethods[method] {
-			return "", fmt.Errorf("invalid HTTP method at index %d: %s", i, method)
-		}
-
-		// Ensure the path starts with "/".
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
-		}
-
-		// Build the full URL.
-		url := environment.BaseURL
-		if strings.HasSuffix(url, "/") && strings.HasPrefix(path, "/") {
-			// Avoid double slash if base URL ends with / and path starts with "/".
-			url = url + strings.TrimPrefix(path, "/")
-		} else if !strings.HasSuffix(url, "/") && !strings.HasPrefix(path, "/") {
-			// Add slash if neither has it.
-			url = url + "/" + path
-		} else {
-			// Either base ends with / or path starts with / but not both.
-			url = url + path
-		}
-
-		// Write the target line.
-		_, err := fmt.Fprintf(file, "%s %s\n", method, url)
+		method, path, err := r.validateTarget(target, i)
 		if err != nil {
-			return "", fmt.Errorf("failed to write target to file: %w", err)
+			return "", err
 		}
 
-		// Write headers.
-		for key, value := range environment.Headers {
-			_, err := fmt.Fprintf(file, "%s: %s\n", key, value)
-			if err != nil {
-				return "", fmt.Errorf("failed to write header to file: %w", err)
-			}
-		}
-		_, err = fmt.Fprintln(file) // Empty line to separate targets.
+		url := r.buildFullURL(environment.BaseURL, path)
+
+		err = r.writeTargetToFile(file, method, url, environment.Headers)
 		if err != nil {
-			return "", fmt.Errorf("failed to write line separator to file: %w", err)
+			return "", err
 		}
 	}
 
 	return file.Name(), nil
+}
+
+// validateTarget validates a target string format.
+func (r *Runner) validateTarget(target string, index int) (string, string, error) {
+	parts := strings.SplitN(target, " ", 2)
+	if len(parts) != 2 {
+		return "", "", gerrors.WithInvalidTargetFormatDetails(index, target)
+	}
+
+	method := parts[0]
+	path := parts[1]
+
+	// Validate method.
+	method = strings.ToUpper(method)
+	validMethods := map[string]bool{
+		"GET":     true,
+		"POST":    true,
+		"PUT":     true,
+		"DELETE":  true,
+		"PATCH":   true,
+		"HEAD":    true,
+		"OPTIONS": true,
+	}
+	if !validMethods[method] {
+		return "", "", gerrors.WithInvalidHTTPMethodDetails(index, method)
+	}
+
+	// Ensure the path starts with "/".
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	return method, path, nil
+}
+
+// buildFullURL builds a full URL from a base URL and path.
+func (r *Runner) buildFullURL(baseURL, path string) string {
+	url := baseURL
+	if strings.HasSuffix(url, "/") && strings.HasPrefix(path, "/") {
+		// Avoid double slash if base URL ends with / and path starts with "/".
+		url += strings.TrimPrefix(path, "/")
+	} else if !strings.HasSuffix(url, "/") && !strings.HasPrefix(path, "/") {
+		// Add slash if neither has it.
+		url += "/" + path
+	} else {
+		// Either base ends with / or path starts with / but not both.
+		url += path
+	}
+	return url
+}
+
+// writeTargetToFile writes a single target with its headers to the targets file.
+func (r *Runner) writeTargetToFile(file *os.File, method, url string, headers map[string]string) error {
+	// Write the target line.
+	if err := r.writeLineToFile(file, fmt.Sprintf("%s %s", method, url)); err != nil {
+		return err
+	}
+
+	// Write headers.
+	for key, value := range headers {
+		if err := r.writeLineToFile(file, fmt.Sprintf("%s: %s", key, value)); err != nil {
+			return err
+		}
+	}
+	
+	// Empty line to separate targets.
+	if err := r.writeLineToFile(file, ""); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// writeLineToFile writes a single line to a file with error handling.
+func (r *Runner) writeLineToFile(file *os.File, line string) error {
+	var err error
+	if line == "" {
+		_, err = fmt.Fprintln(file)
+	} else {
+		_, err = fmt.Fprintln(file, line)
+	}
+	
+	if err != nil {
+		return fmt.Errorf("failed to write to file: %w", err)
+	}
+	return nil
 }
 
 // RunPreHook executes the pre-hook script if configured.
@@ -208,12 +246,12 @@ func (r *Runner) RunPreHook(cfg *config.Config) error {
 	}
 
 	if _, err := os.Stat(cfg.Hooks.Pre); os.IsNotExist(err) {
-		return fmt.Errorf("pre-hook script not found: %s", cfg.Hooks.Pre)
+		return gerrors.WithPreHookNotFoundDetails(cfg.Hooks.Pre)
 	}
 
 	output, err := r.execCommand(cfg.Hooks.Pre)
 	if err != nil {
-		return fmt.Errorf("pre-hook script execution failed: %w\n%s", err, string(output))
+		return fmt.Errorf("%w: %v\n%s", gerrors.ErrPreHookNotExec, err, string(output))
 	}
 
 	return nil
@@ -226,13 +264,29 @@ func (r *Runner) RunPostHook(cfg *config.Config, exitCode int) error {
 	}
 
 	if _, err := os.Stat(cfg.Hooks.Post); os.IsNotExist(err) {
-		return fmt.Errorf("post-hook script not found: %s", cfg.Hooks.Post)
+		return gerrors.WithPostHookNotFoundDetails(cfg.Hooks.Post)
 	}
 
 	output, err := r.execCommand(cfg.Hooks.Post, strconv.Itoa(exitCode))
 	if err != nil {
-		return fmt.Errorf("post-hook script execution failed: %w\n%s", err, string(output))
+		return fmt.Errorf("%w: %v\n%s", gerrors.ErrPostHookNotExec, err, string(output))
 	}
 
 	return nil
+}
+
+// isExitError checks if an error is an exec.ExitError.
+func (r *Runner) isExitError(err error) bool {
+	var exitErr *exec.ExitError
+	return errors.As(err, &exitErr)
+}
+
+// isCommandNotFound checks if an error indicates that a command was not found.
+func (r *Runner) isCommandNotFound(err error) bool {
+	return strings.Contains(err.Error(), "executable file not found")
+}
+
+// isPermissionDenied checks if output contains a permission denied error.
+func (r *Runner) isPermissionDenied(output string) bool {
+	return strings.Contains(output, "permission denied")
 }
