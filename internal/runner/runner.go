@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/kanywst/galick/internal/config"
+	"github.com/kanywst/galick/internal/constants"
 	gerrors "github.com/kanywst/galick/internal/errors"
 )
 
@@ -50,7 +51,7 @@ func (r *Runner) RunScenario(cfg *config.Config, scenarioName, environmentName, 
 	}
 
 	// Create the output directory
-	if err := os.MkdirAll(outputFolder, 0o755); err != nil {
+	if err := os.MkdirAll(outputFolder, constants.DirPermissionDefault); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -170,8 +171,8 @@ func (r *Runner) createTargetsFile(targets []string, environment *config.Environ
 
 // validateTarget validates a target string format.
 func (r *Runner) validateTarget(target string, index int) (string, string, error) {
-	parts := strings.SplitN(target, " ", 2)
-	if len(parts) != 2 {
+	parts := strings.SplitN(target, " ", constants.DefaultSplitParts)
+	if len(parts) != constants.DefaultSplitParts {
 		return "", "", gerrors.WithInvalidTargetFormatDetails(index, target)
 	}
 

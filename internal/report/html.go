@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kanywst/galick/internal/constants"
 	gerrors "github.com/kanywst/galick/internal/errors"
 )
 
@@ -116,16 +117,16 @@ func (r *Reporter) GenerateHTMLReport(
 		Scenario:             scenario,
 		Date:                 time.Now().Format("2006-01-02 15:04:05"),
 		Metrics:              metrics,
-		Duration:             fmt.Sprintf("%.1fs", float64(metrics.Duration)/1000000000),
+		Duration:             fmt.Sprintf("%.1fs", float64(metrics.Duration)/constants.NanoToSecond),
 		Passed:               passed,
-		SuccessRate:          fmt.Sprintf("%.1f", metrics.SuccessRate*100),
+		SuccessRate:          fmt.Sprintf("%.1f", metrics.SuccessRate*constants.Percentage100),
 		SuccessRateStatus:    successRateStatus,
 		SuccessRateThreshold: successRateThreshold,
-		P95Latency:           fmt.Sprintf("%.0fms", float64(metrics.Latencies.P95)/1000000),
+		P95Latency:           fmt.Sprintf("%.0fms", float64(metrics.Latencies.P95)/constants.NanoToMillisecond),
 		P95Status:            p95Status,
 		P95Threshold:         p95Threshold,
 		Throughput:           fmt.Sprintf("%.1f", metrics.Throughput),
-		MeanLatency:          fmt.Sprintf("%.0fms", float64(metrics.Latencies.Mean)/1000000),
+		MeanLatency:          fmt.Sprintf("%.0fms", float64(metrics.Latencies.Mean)/constants.NanoToMillisecond),
 		ThresholdResults:     thresholdResults,
 	}
 
@@ -151,7 +152,7 @@ func (r *Reporter) checkSuccessRateThreshold(
 		threshold, err := parseThresholdValue(val)
 		if err == nil {
 			successRateThreshold = val
-			actual := metrics.SuccessRate * 100
+			actual := metrics.SuccessRate * constants.Percentage100
 			if actual < threshold {
 				successRateStatus = false
 			}
@@ -180,7 +181,7 @@ func (r *Reporter) checkP95LatencyThreshold(
 		threshold, err := parseLatencyThreshold(val)
 		if err == nil {
 			p95Threshold = val
-			actual := float64(metrics.Latencies.P95) / 1000000 // ns to ms
+			actual := float64(metrics.Latencies.P95) / constants.NanoToMillisecond // ns to ms
 			if actual > threshold {
 				p95Status = false
 			}
@@ -216,7 +217,7 @@ func (r *Reporter) checkOtherLatencyThresholds(
 		if val, ok := thresholds[metric]; ok && metric != "p95" { // p95 already handled
 			threshold, err := parseLatencyThreshold(val)
 			if err == nil {
-				actual := float64(value) / 1000000 // ns to ms
+				actual := float64(value) / constants.NanoToMillisecond // ns to ms
 				metricPassed := actual <= threshold
 				if !metricPassed {
 					allPassed = false
@@ -259,12 +260,12 @@ func (r *Reporter) SaveHTMLReport(
 
 	// Ensure output directory exists
 	outputDir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+	if err := os.MkdirAll(outputDir, constants.DirPermissionDefault); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Write the HTML to file
-	if err := os.WriteFile(outputPath, []byte(html), 0o600); err != nil {
+	if err := os.WriteFile(outputPath, []byte(html), constants.FilePermissionDefault); err != nil {
 		return "", fmt.Errorf("failed to write HTML report: %w", err)
 	}
 

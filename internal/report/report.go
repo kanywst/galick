@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kanywst/galick/internal/config"
+	"github.com/kanywst/galick/internal/constants"
 	gerrors "github.com/kanywst/galick/internal/errors"
 )
 
@@ -89,7 +90,7 @@ func (r *Reporter) GenerateReports(
 	}
 
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+	if err := os.MkdirAll(outputDir, constants.DirPermissionDefault); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -208,7 +209,7 @@ func (r *Reporter) enhanceMarkdownReport(
 	}
 
 	// Write the markdown report
-	if err := os.WriteFile(result.FilePath, []byte(mdReport), 0o600); err != nil {
+	if err := os.WriteFile(result.FilePath, []byte(mdReport), constants.FilePermissionPrivate); err != nil {
 		return fmt.Errorf("failed to write markdown report: %w", err)
 	}
 
@@ -229,7 +230,7 @@ func (r *Reporter) enhanceHTMLReport(
 	}
 
 	// Write the HTML report
-	if err := os.WriteFile(result.FilePath, []byte(htmlReport), 0o600); err != nil {
+	if err := os.WriteFile(result.FilePath, []byte(htmlReport), constants.FilePermissionPrivate); err != nil {
 		return fmt.Errorf("failed to write HTML report: %w", err)
 	}
 
@@ -245,7 +246,7 @@ func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics
 	}
 
 	// Write the report to file
-	if err := os.WriteFile(outputFile, outputData, 0o600); err != nil {
+	if err := os.WriteFile(outputFile, outputData, constants.FilePermissionDefault); err != nil {
 		return fmt.Errorf("failed to write report file: %w", err)
 	}
 
@@ -339,9 +340,9 @@ func (r *Reporter) checkSuccessRate(metrics *Metrics, thresholds map[string]stri
 			return violations
 		}
 
-		if metrics.SuccessRate*100 < threshold {
+		if metrics.SuccessRate*constants.Percentage100 < threshold {
 			violations = append(violations,
-				fmt.Sprintf("success_rate: %.2f%% < %.2f%%", metrics.SuccessRate*100, threshold))
+				fmt.Sprintf("success_rate: %.2f%% < %.2f%%", metrics.SuccessRate*constants.Percentage100, threshold))
 		}
 	}
 
@@ -392,7 +393,7 @@ func (r *Reporter) getMetricValue(metrics *Metrics, metric string) (int64, float
 
 	if validMetric {
 		// Convert nanoseconds to milliseconds
-		actualValue = float64(latencyNs) / 1000000
+		actualValue = float64(latencyNs) / constants.NanoToMillisecond
 	}
 
 	return latencyNs, actualValue, validMetric
@@ -432,7 +433,7 @@ func (r *Reporter) checkErrorRate(metrics *Metrics, thresholds map[string]string
 			return violations
 		}
 
-		errorRate := (1 - metrics.SuccessRate) * 100
+		errorRate := (1 - metrics.SuccessRate) * constants.Percentage100
 		if errorRate > threshold {
 			violations = append(violations,
 				fmt.Sprintf("error_rate: %.2f%% > %.2f%%", errorRate, threshold))
@@ -545,18 +546,18 @@ func (r *Reporter) createMarkdownTemplateData(
 		Scenario:    scenario,
 		Environment: environment,
 		Date:        time.Now().Format("2006-01-02 15:04:05"),
-		SuccessRate: fmt.Sprintf("%.1f", metrics.SuccessRate*100),
+		SuccessRate: fmt.Sprintf("%.1f", metrics.SuccessRate*constants.Percentage100),
 		Requests:    metrics.Requests,
 		Throughput:  fmt.Sprintf("%.1f", metrics.Throughput),
-		Duration:    fmt.Sprintf("%.1f", float64(metrics.Duration)/1000000000),
-		Min:         fmt.Sprintf("%.0f", float64(metrics.Latencies.Min)/1000000),
-		Mean:        fmt.Sprintf("%.0f", float64(metrics.Latencies.Mean)/1000000),
-		P50:         fmt.Sprintf("%.0f", float64(metrics.Latencies.P50)/1000000),
-		P90:         fmt.Sprintf("%.0f", float64(metrics.Latencies.P90)/1000000),
-		P95:         fmt.Sprintf("%.0f", float64(metrics.Latencies.P95)/1000000),
-		P99:         fmt.Sprintf("%.0f", float64(metrics.Latencies.P99)/1000000),
-		Max:         fmt.Sprintf("%.0f", float64(metrics.Latencies.Max)/1000000),
-		StdDev:      fmt.Sprintf("%.0f", float64(metrics.Latencies.StdDev)/1000000),
+		Duration:    fmt.Sprintf("%.1f", float64(metrics.Duration)/constants.NanoToSecond),
+		Min:         fmt.Sprintf("%.0f", float64(metrics.Latencies.Min)/constants.NanoToMillisecond),
+		Mean:        fmt.Sprintf("%.0f", float64(metrics.Latencies.Mean)/constants.NanoToMillisecond),
+		P50:         fmt.Sprintf("%.0f", float64(metrics.Latencies.P50)/constants.NanoToMillisecond),
+		P90:         fmt.Sprintf("%.0f", float64(metrics.Latencies.P90)/constants.NanoToMillisecond),
+		P95:         fmt.Sprintf("%.0f", float64(metrics.Latencies.P95)/constants.NanoToMillisecond),
+		P99:         fmt.Sprintf("%.0f", float64(metrics.Latencies.P99)/constants.NanoToMillisecond),
+		Max:         fmt.Sprintf("%.0f", float64(metrics.Latencies.Max)/constants.NanoToMillisecond),
+		StdDev:      fmt.Sprintf("%.0f", float64(metrics.Latencies.StdDev)/constants.NanoToMillisecond),
 		Violations:  violations,
 	}
 }
@@ -645,7 +646,7 @@ func parseLatencyThreshold(threshold string) (float64, error) {
 		if err != nil {
 			return 0, gerrors.WithInvalidSecValueDetails(threshold)
 		}
-		return value * 1000, nil // Convert seconds to milliseconds
+		return value * constants.MilliToSec, nil // Convert seconds to milliseconds
 	}
 
 	return 0, gerrors.WithUnknownLatencyUnitDetails(threshold)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kanywst/galick/internal/config"
+	"github.com/kanywst/galick/internal/constants"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -96,7 +97,7 @@ func TestRunScenario(t *testing.T) {
 		execCommand: func(_ string, _ ...string) ([]byte, error) {
 			// Create a dummy results file to simulate successful execution
 			resultsFile := filepath.Join(tempDir, "results.bin")
-			err := os.WriteFile(resultsFile, []byte("mock vegeta binary data"), 0o600)
+			err := os.WriteFile(resultsFile, []byte("mock vegeta binary data"), constants.FilePermissionDefault)
 			if err != nil {
 				return nil, err
 			}

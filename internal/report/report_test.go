@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kanywst/galick/internal/config"
+	"github.com/kanywst/galick/internal/constants"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +20,7 @@ func TestGenerateReportFormats(t *testing.T) {
 	// Create a mock result file (this would normally be output from Vegeta)
 	// This is a simplified binary version for testing
 	resultFilePath := filepath.Join(tempDir, "results.bin")
-	err = os.WriteFile(resultFilePath, []byte("mock-vegeta-data"), 0644)
+	err = os.WriteFile(resultFilePath, []byte("mock-vegeta-data"), constants.FilePermissionDefault)
 	assert.NoError(t, err)
 
 	// Create mock metrics for markdown generation

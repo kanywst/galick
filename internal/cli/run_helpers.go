@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/kanywst/galick/internal/config"
+	"github.com/kanywst/galick/internal/constants"
 	"github.com/kanywst/galick/internal/report"
 	"github.com/kanywst/galick/internal/runner"
 )
@@ -46,7 +47,7 @@ func (app *App) prepareRunParameters(args []string) (*config.Config, *RunParamet
 
 	// Create specific output directory for this run
 	runOutputDir := filepath.Join(outDir, envName, scenarioName)
-	if err := os.MkdirAll(runOutputDir, 0o755); err != nil {
+	if err := os.MkdirAll(runOutputDir, constants.DirPermissionDefault); err != nil {
 		return nil, nil, err
 	}
 

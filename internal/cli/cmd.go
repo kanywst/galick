@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/kanywst/galick/internal/config"
+	"github.com/kanywst/galick/internal/constants"
 	"github.com/kanywst/galick/internal/report"
 	"github.com/kanywst/galick/internal/runner"
 	"github.com/spf13/cobra"
@@ -199,7 +200,7 @@ hooks:
   post: ./scripts/post-load.sh
 `
 			// Write the config file
-			if err := os.WriteFile(configFile, []byte(defaultConfig), 0o600); err != nil {
+			if err := os.WriteFile(configFile, []byte(defaultConfig), constants.FilePermissionPrivate); err != nil {
 				_, _ = fmt.Fprintln(os.Stderr, "Error creating config file:", err)
 				os.Exit(1)
 			}

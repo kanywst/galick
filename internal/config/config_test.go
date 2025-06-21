@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kanywst/galick/internal/constants"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,7 +55,7 @@ hooks:
   post: ./scripts/post-load.sh
 `
 	configPath := filepath.Join(tempDir, "loadtest.yaml")
-	err = os.WriteFile(configPath, []byte(yamlContent), 0o600)
+	err = os.WriteFile(configPath, []byte(yamlContent), constants.FilePermissionDefault)
 	assert.NoError(t, err)
 
 	// Test loading the config
@@ -122,7 +123,7 @@ func TestDefaultConfigFile(t *testing.T) {
 	yamlContent := `default: {environment: dev, scenario: simple}`
 
 	// Test with loadtest.yaml
-	err = os.WriteFile("loadtest.yaml", []byte(yamlContent), 0o600)
+	err = os.WriteFile("loadtest.yaml", []byte(yamlContent), constants.FilePermissionDefault)
 	assert.NoError(t, err)
 
 	// Add minimal environment and scenario sections for validation to pass
@@ -140,7 +141,7 @@ scenarios:
     targets:
       - GET /api/health
 `
-	err = os.WriteFile("loadtest.yaml", []byte(minimalYaml), 0o600)
+	err = os.WriteFile("loadtest.yaml", []byte(minimalYaml), constants.FilePermissionDefault)
 	assert.NoError(t, err)
 
 	cfg, err := FindAndLoadConfig("")
@@ -151,7 +152,7 @@ scenarios:
 	os.Remove("loadtest.yaml")
 
 	// Test with loadtest.yml
-	err = os.WriteFile("loadtest.yml", []byte(minimalYaml), 0o600)
+	err = os.WriteFile("loadtest.yml", []byte(minimalYaml), constants.FilePermissionDefault)
 	assert.NoError(t, err)
 
 	cfg, err = FindAndLoadConfig("")
