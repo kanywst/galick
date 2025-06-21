@@ -17,7 +17,8 @@ func TestVersionCommand(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Create a root command with version subcommand
-	cmd := cli.NewRootCmd()
+	app := cli.NewApp()
+	cmd := app.NewRootCmd()
 	cmd.SetOut(&buf)
 
 	// Set args to simulate version command
@@ -57,7 +58,8 @@ func TestInitCommand(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Create a root command with init subcommand
-	cmd := cli.NewRootCmd()
+	app := cli.NewApp()
+	cmd := app.NewRootCmd()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
@@ -97,7 +99,8 @@ func TestRootCommand(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Create a root command
-	cmd := cli.NewRootCmd()
+	app := cli.NewApp()
+	cmd := app.NewRootCmd()
 	cmd.SetOut(&buf)
 
 	// Execute the command with help flag
@@ -117,7 +120,8 @@ func TestRunCommand(t *testing.T) {
 	// A full test would require mocking the runner and config
 
 	// Create a root command with run subcommand
-	cmd := cli.NewRootCmd()
+	app := cli.NewApp()
+	cmd := app.NewRootCmd()
 	runCmd, _, err := cmd.Find([]string{"run"})
 
 	// Check that the command exists and has the expected properties
@@ -133,7 +137,8 @@ func TestReportCommand(t *testing.T) {
 	// A full test would require mocking the reporter and config
 
 	// Create a root command with report subcommand
-	cmd := cli.NewRootCmd()
+	app := cli.NewApp()
+	cmd := app.NewRootCmd()
 	reportCmd, _, err := cmd.Find([]string{"report"})
 
 	// Check that the command exists and has the expected properties

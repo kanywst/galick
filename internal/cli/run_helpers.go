@@ -11,10 +11,17 @@ import (
 	"github.com/kanywst/galick/internal/runner"
 )
 
+// RunParameters holds the parameters for a scenario run.
+type RunParameters struct {
+	Scenario    string
+	Environment string
+	OutputDir   string
+}
+
 // prepareRunParameters loads config and determines scenario, environment and output directory.
-func prepareRunParameters(args []string) (*config.Config, *runParameters, error) {
+func (app *App) prepareRunParameters(args []string) (*config.Config, *RunParameters, error) {
 	// Load config
-	cfg, err := config.LoadConfig(cfgFile)
+	cfg, err := config.LoadConfig(app.Options.CfgFile)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -26,13 +33,13 @@ func prepareRunParameters(args []string) (*config.Config, *runParameters, error)
 	}
 
 	// Determine environment
-	envName := environment
+	envName := app.Options.Environment
 	if envName == "" {
 		envName = cfg.Default.Environment
 	}
 
 	// Determine output directory
-	outDir := outputDir
+	outDir := app.Options.OutputDir
 	if outDir == "" {
 		outDir = cfg.Default.OutputDir
 	}
@@ -43,26 +50,19 @@ func prepareRunParameters(args []string) (*config.Config, *runParameters, error)
 		return nil, nil, err
 	}
 
-	return cfg, &runParameters{
-		scenarioName: scenarioName,
-		envName:      envName,
-		outputDir:    runOutputDir,
+	return cfg, &RunParameters{
+		Scenario:    scenarioName,
+		Environment: envName,
+		OutputDir:   runOutputDir,
 	}, nil
 }
 
-// runParameters holds the parameters for a scenario run.
-type runParameters struct {
-	scenarioName string
-	envName      string
-	outputDir    string
-}
-
 // executeScenario runs the scenario and generates reports.
-func executeScenario(r *runner.Runner, cfg *config.Config, params *runParameters) (int, error) {
-	_, _ = fmt.Printf("Running scenario '%s' in environment '%s'...\n", params.scenarioName, params.envName)
+func (app *App) executeScenario(r *runner.Runner, cfg *config.Config, params *RunParameters) (int, error) {
+	_, _ = fmt.Printf("Running scenario '%s' in environment '%s'...\n", params.Scenario, params.Environment)
 
 	// Run the scenario
-	result, err := r.RunScenario(cfg, params.scenarioName, params.envName, params.outputDir)
+	result, err := r.RunScenario(cfg, params.Scenario, params.Environment, params.OutputDir)
 	if err != nil {
 		return 1, err
 	}
@@ -74,9 +74,9 @@ func executeScenario(r *runner.Runner, cfg *config.Config, params *runParameters
 	_, _ = fmt.Println("Generating reports...")
 	results, err := reporter.GenerateReports(
 		result.OutputFile,
-		params.outputDir,
-		params.scenarioName,
-		params.envName,
+		params.OutputDir,
+		params.Scenario,
+		params.Environment,
 		cfg,
 	)
 
@@ -89,7 +89,7 @@ func executeScenario(r *runner.Runner, cfg *config.Config, params *runParameters
 	for _, report := range results {
 		if !report.Passed {
 			_, _ = fmt.Printf("⚠️ Threshold violations detected in %s report\n", report.Format)
-			if ciMode {
+			if app.Options.CIMode {
 				exitCode = 1
 			}
 		}

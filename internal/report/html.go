@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	gerrors "github.com/kanywst/galick/internal/errors"
@@ -16,19 +17,32 @@ import (
 //go:embed templates/html_report.tmpl
 var htmlTemplateString string
 
-// htmlTemplateCache stores the parsed template to avoid parsing it repeatedly.
-var htmlTemplateCache *template.Template
+// HTMLTemplateCache manages the template caching
+type HTMLTemplateCache struct {
+	template *template.Template
+	once     sync.Once
+	err      error
+}
 
-// getHTMLTemplate returns the parsed HTML template, initializing it if needed.
-func getHTMLTemplate() (*template.Template, error) {
-	if htmlTemplateCache == nil {
+// templateCache is the package-level instance used by Reporter
+var templateCache HTMLTemplateCache
+
+// Get returns the parsed HTML template, initializing it if needed
+func (c *HTMLTemplateCache) Get() (*template.Template, error) {
+	c.once.Do(func() {
 		tmpl, err := template.New("html").Parse(htmlTemplateString)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse HTML template: %w", err)
+			c.err = fmt.Errorf("failed to parse HTML template: %w", err)
+			return
 		}
-		htmlTemplateCache = tmpl
-	}
-	return htmlTemplateCache, nil
+		c.template = tmpl
+	})
+	return c.template, c.err
+}
+
+// getHTMLTemplate returns the parsed HTML template using the cache
+func getHTMLTemplate() (*template.Template, error) {
+	return templateCache.Get()
 }
 
 // HTMLData contains data for HTML report template.

@@ -53,7 +53,7 @@ func (h *HookRunner) RunPreHook(cfg *config.Config) error {
 
 	output, err := h.execCommand(cfg.Hooks.Pre)
 	if err != nil {
-		return fmt.Errorf("%w: %v\n%s", gerrors.ErrPreHookNotExec, err, string(output))
+		return fmt.Errorf("%w: %w\n%s", gerrors.ErrPreHookNotExec, err, string(output))
 	}
 
 	return nil
@@ -87,7 +87,7 @@ func (h *HookRunner) RunPostHook(cfg *config.Config, exitCode int) error {
 
 	output, err := h.execCommand(cfg.Hooks.Post, strconv.Itoa(exitCode))
 	if err != nil {
-		return fmt.Errorf("%w: %v\n%s", gerrors.ErrPostHookNotExec, err, string(output))
+		return fmt.Errorf("%w: %w\n%s", gerrors.ErrPostHookNotExec, err, string(output))
 	}
 
 	return nil

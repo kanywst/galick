@@ -179,26 +179,12 @@ func (r *Reporter) enhanceRichReports(
 ) error {
 	for _, result := range results {
 		if result.Format == FormatMarkdown {
-			// Generate markdown with threshold annotations
-			mdReport, err := r.GenerateMarkdownReport(scenario, environment, metrics, thresholds)
-			if err != nil {
-				return fmt.Errorf("failed to generate markdown report: %w", err)
-			}
-
-			// Write the markdown report
-			if err := os.WriteFile(result.FilePath, []byte(mdReport), 0o600); err != nil {
-				return fmt.Errorf("failed to write markdown report: %w", err)
+			if err := r.enhanceMarkdownReport(result, scenario, environment, metrics, thresholds); err != nil {
+				return err
 			}
 		} else if result.Format == FormatHTML {
-			// Generate HTML with threshold annotations
-			htmlReport, err := r.GenerateHTMLReport(scenario, environment, metrics, thresholds)
-			if err != nil {
-				return fmt.Errorf("failed to generate HTML report: %w", err)
-			}
-
-			// Write the HTML report
-			if err := os.WriteFile(result.FilePath, []byte(htmlReport), 0o600); err != nil {
-				return fmt.Errorf("failed to write HTML report: %w", err)
+			if err := r.enhanceHTMLReport(result, scenario, environment, metrics, thresholds); err != nil {
+				return err
 			}
 		}
 	}
@@ -206,45 +192,54 @@ func (r *Reporter) enhanceRichReports(
 	return nil
 }
 
+// enhanceMarkdownReport enhances a markdown report with scenario and environment information.
+func (r *Reporter) enhanceMarkdownReport(
+	result Result,
+	scenario, environment string,
+	metrics *Metrics,
+	thresholds map[string]string,
+) error {
+	// Generate markdown with threshold annotations
+	mdReport, err := r.GenerateMarkdownReport(scenario, environment, metrics, thresholds)
+	if err != nil {
+		return fmt.Errorf("failed to generate markdown report: %w", err)
+	}
+
+	// Write the markdown report
+	if err := os.WriteFile(result.FilePath, []byte(mdReport), 0o600); err != nil {
+		return fmt.Errorf("failed to write markdown report: %w", err)
+	}
+
+	return nil
+}
+
+// enhanceHTMLReport enhances an HTML report with scenario and environment information.
+func (r *Reporter) enhanceHTMLReport(
+	result Result,
+	scenario, environment string,
+	metrics *Metrics,
+	thresholds map[string]string,
+) error {
+	// Generate HTML with threshold annotations
+	htmlReport, err := r.GenerateHTMLReport(scenario, environment, metrics, thresholds)
+	if err != nil {
+		return fmt.Errorf("failed to generate HTML report: %w", err)
+	}
+
+	// Write the HTML report
+	if err := os.WriteFile(result.FilePath, []byte(htmlReport), 0o600); err != nil {
+		return fmt.Errorf("failed to write HTML report: %w", err)
+	}
+
+	return nil
+}
+
 // GenerateReport generates a report in the specified format
 func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics *Metrics) error {
-	var args []string
-	var outputData []byte
-	var err error
-
-	// Handle different formats
-	switch {
-	case format == FormatMarkdown && metrics != nil:
-		// Generate basic markdown (will be enhanced later in GenerateReports)
-		mdReport, err := r.GenerateMarkdownReport("", "", metrics, nil)
-		if err != nil {
-			return err
-		}
-		outputData = []byte(mdReport)
-	case format == FormatHTML && metrics != nil:
-		// Generate HTML report
-		htmlReport, err := r.GenerateHTMLReport("", "", metrics, nil)
-		if err != nil {
-			return err
-		}
-		outputData = []byte(htmlReport)
-	default:
-		// For other formats, use vegeta's report command
-		args = []string{"report"}
-
-		// Add format flag for non-text formats
-		if format != FormatText {
-			args = append(args, "-type="+format)
-		}
-
-		// Add input file
-		args = append(args, resultFile)
-
-		// Execute vegeta report command
-		outputData, err = r.execCommand("vegeta", args...)
-		if err != nil {
-			return fmt.Errorf("vegeta report command failed: %w", err)
-		}
+	// Generate report data based on format
+	outputData, err := r.generateReportData(resultFile, format, metrics)
+	if err != nil {
+		return err
 	}
 
 	// Write the report to file
@@ -253,6 +248,52 @@ func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics
 	}
 
 	return nil
+}
+
+// generateReportData creates the raw report data based on the specified format
+func (r *Reporter) generateReportData(resultFile, format string, metrics *Metrics) ([]byte, error) {
+	// Handle rich formats (markdown and HTML)
+	if format == FormatMarkdown && metrics != nil {
+		// Generate basic markdown
+		mdReport, err := r.GenerateMarkdownReport("", "", metrics, nil)
+		if err != nil {
+			return nil, err
+		}
+		return []byte(mdReport), nil
+	}
+
+	if format == FormatHTML && metrics != nil {
+		// Generate HTML report
+		htmlReport, err := r.GenerateHTMLReport("", "", metrics, nil)
+		if err != nil {
+			return nil, err
+		}
+		return []byte(htmlReport), nil
+	}
+
+	// For other formats, use vegeta's report command
+	return r.generateVegetaReport(resultFile, format)
+}
+
+// generateVegetaReport uses the vegeta CLI to generate a report
+func (r *Reporter) generateVegetaReport(resultFile, format string) ([]byte, error) {
+	args := []string{"report"}
+
+	// Add format flag for non-text formats
+	if format != FormatText {
+		args = append(args, "-type="+format)
+	}
+
+	// Add input file
+	args = append(args, resultFile)
+
+	// Execute vegeta report command
+	outputData, err := r.execCommand("vegeta", args...)
+	if err != nil {
+		return nil, fmt.Errorf("vegeta report command failed: %w", err)
+	}
+
+	return outputData, nil
 }
 
 // CheckThresholds validates metrics against configured thresholds.

@@ -105,7 +105,7 @@ func (r *Runner) handleVegetaError(err error, output []byte) error {
 	case r.isPermissionDenied(string(output)):
 		return gerrors.ErrVegetaNotExec
 	default:
-		return fmt.Errorf("%w: %v\n%s", gerrors.ErrVegetaAttackFailed, err, string(output))
+		return fmt.Errorf("%w: %w\n%s", gerrors.ErrVegetaAttackFailed, err, string(output))
 	}
 }
 
@@ -268,7 +268,7 @@ func (r *Runner) RunPreHook(cfg *config.Config) error {
 
 	output, err := r.execCommand(cfg.Hooks.Pre)
 	if err != nil {
-		return fmt.Errorf("%w: %v\n%s", gerrors.ErrPreHookNotExec, err, string(output))
+		return fmt.Errorf("%w: %w\n%s", gerrors.ErrPreHookNotExec, err, string(output))
 	}
 
 	return nil
@@ -286,7 +286,7 @@ func (r *Runner) RunPostHook(cfg *config.Config, exitCode int) error {
 
 	output, err := r.execCommand(cfg.Hooks.Post, strconv.Itoa(exitCode))
 	if err != nil {
-		return fmt.Errorf("%w: %v\n%s", gerrors.ErrPostHookNotExec, err, string(output))
+		return fmt.Errorf("%w: %w\n%s", gerrors.ErrPostHookNotExec, err, string(output))
 	}
 
 	return nil

@@ -14,29 +14,52 @@ import (
 	"github.com/spf13/viper"
 )
 
-var (
-	// Version information (set at build time).
-	version   = "dev"
-	commit    = "none"
-	buildDate = "unknown"
+// VersionInfo contains version information set at build time.
+type VersionInfo struct {
+	Version   string
+	Commit    string
+	BuildDate string
+}
 
-	// CLI flags.
-	cfgFile     string
-	environment string
-	outputDir   string
-	ciMode      bool
-)
+// CLIOptions contains command-line options and flags.
+type CLIOptions struct {
+	CfgFile     string
+	Environment string
+	OutputDir   string
+	CIMode      bool
+}
+
+// App represents the CLI application.
+type App struct {
+	VersionInfo VersionInfo
+	Options     CLIOptions
+	viper       *viper.Viper
+}
+
+// NewApp creates a new CLI application instance.
+func NewApp() *App {
+	return &App{
+		VersionInfo: VersionInfo{
+			Version:   "dev",
+			Commit:    "none",
+			BuildDate: "unknown",
+		},
+		Options: CLIOptions{},
+		viper:   viper.New(),
+	}
+}
 
 // Run is the main entry point for the galick CLI.
 func Run() {
-	if err := NewRootCmd().Execute(); err != nil {
+	app := NewApp()
+	if err := app.NewRootCmd().Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err) // エラー出力は無視
 		os.Exit(1)
 	}
 }
 
 // NewRootCmd creates the root command with all subcommands.
-func NewRootCmd() *cobra.Command {
+func (app *App) NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "galick",
 		Short: "A Vegeta-based load testing tool with enhanced features",
@@ -48,48 +71,48 @@ Complete documentation is available at https://github.com/kanywst/galick`,
 	}
 
 	// Persistent flags for the root command
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./loadtest.yaml)")
-	rootCmd.PersistentFlags().StringVarP(&environment, "env", "e", "", "environment to use (default is from config)")
-	rootCmd.PersistentFlags().StringVarP(&outputDir, "output-dir", "o", "", "output directory (default is from config)")
+	rootCmd.PersistentFlags().StringVar(&app.Options.CfgFile, "config", "", "config file (default is ./loadtest.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&app.Options.Environment, "env", "e", "", "environment to use (default is from config)")
+	rootCmd.PersistentFlags().StringVarP(&app.Options.OutputDir, "output-dir", "o", "", "output directory (default is from config)")
 	rootCmd.PersistentFlags().BoolVar(
-		&ciMode,
+		&app.Options.CIMode,
 		"ci",
 		false,
 		"enable CI mode (exit with non-zero code on threshold violations)",
 	)
 
 	// Add subcommands
-	rootCmd.AddCommand(newVersionCmd())
-	rootCmd.AddCommand(newInitCmd())
-	rootCmd.AddCommand(newRunCmd())
-	rootCmd.AddCommand(newReportCmd())
+	rootCmd.AddCommand(app.newVersionCmd())
+	rootCmd.AddCommand(app.newInitCmd())
+	rootCmd.AddCommand(app.newRunCmd())
+	rootCmd.AddCommand(app.newReportCmd())
 
 	// Initialize config
-	cobra.OnInitialize(initConfig)
+	app.initConfig()
 
 	return rootCmd
 }
 
 // initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	if cfgFile != "" {
+func (app *App) initConfig() {
+	if app.Options.CfgFile != "" {
 		// Use config file from the flag
-		viper.SetConfigFile(cfgFile)
+		app.viper.SetConfigFile(app.Options.CfgFile)
 	} else {
 		// Use default config location
-		viper.AddConfigPath(".")
-		viper.SetConfigName("loadtest")
-		viper.SetConfigType("yaml")
+		app.viper.AddConfigPath(".")
+		app.viper.SetConfigName("loadtest")
+		app.viper.SetConfigType("yaml")
 	}
 
-	viper.AutomaticEnv()
+	app.viper.AutomaticEnv()
 
 	// If a config file is found, read it in
-	_ = viper.ReadInConfig() // エラーは無視する
+	_ = app.viper.ReadInConfig() // エラーは無視する
 }
 
 // newVersionCmd creates the version command.
-func newVersionCmd() *cobra.Command {
+func (app *App) newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version information",
@@ -97,14 +120,14 @@ func newVersionCmd() *cobra.Command {
 			_, _ = fmt.Fprintf(
 				cmd.OutOrStdout(),
 				"galick version %s (commit: %s, built: %s)\n",
-				version, commit, buildDate,
+				app.VersionInfo.Version, app.VersionInfo.Commit, app.VersionInfo.BuildDate,
 			)
 		},
 	}
 }
 
 // newInitCmd creates the init command.
-func newInitCmd() *cobra.Command {
+func (app *App) newInitCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new load test configuration",
@@ -112,8 +135,8 @@ func newInitCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, _ []string) {
 			// Check if config file already exists
 			configFile := "loadtest.yaml"
-			if cfgFile != "" {
-				configFile = cfgFile
+			if app.Options.CfgFile != "" {
+				configFile = app.Options.CfgFile
 			}
 
 			if _, err := os.Stat(configFile); err == nil {
@@ -175,7 +198,6 @@ hooks:
   pre: ./scripts/pre-load.sh
   post: ./scripts/post-load.sh
 `
-
 			// Write the config file
 			if err := os.WriteFile(configFile, []byte(defaultConfig), 0o600); err != nil {
 				_, _ = fmt.Fprintln(os.Stderr, "Error creating config file:", err)
@@ -188,14 +210,14 @@ hooks:
 }
 
 // newRunCmd creates the run command.
-func newRunCmd() *cobra.Command {
+func (app *App) newRunCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run [scenario]",
 		Short: "Run a load test scenario",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(_ *cobra.Command, args []string) {
 			// Load config and prepare parameters
-			cfg, runParams, err := prepareRunParameters(args)
+			cfg, runParams, err := app.prepareRunParameters(args)
 			if err != nil {
 				_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
 				os.Exit(1)
@@ -211,7 +233,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// Run the scenario
-			exitCode, err := executeScenario(r, cfg, runParams)
+			exitCode, err := app.executeScenario(r, cfg, runParams)
 
 			// Run post-hook
 			if hookErr := r.RunPostHook(cfg, exitCode); hookErr != nil {
@@ -235,7 +257,7 @@ func newRunCmd() *cobra.Command {
 }
 
 // newReportCmd creates the report command.
-func newReportCmd() *cobra.Command {
+func (app *App) newReportCmd() *cobra.Command {
 	var (
 		resultsFile string
 		reportDir   string
@@ -253,7 +275,7 @@ func newReportCmd() *cobra.Command {
 			}
 
 			// Load config
-			cfg, err := config.LoadConfig(cfgFile)
+			cfg, err := config.LoadConfig(app.Options.CfgFile)
 			if err != nil {
 				_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
 				os.Exit(1)
@@ -268,7 +290,7 @@ func newReportCmd() *cobra.Command {
 			reporter := report.NewReporter()
 
 			// Generate report based on type
-			exitCode := generateReport(reporter, cfg, resultsFile, reportDir, reportType)
+			exitCode := app.generateReport(reporter, cfg, resultsFile, reportDir, reportType)
 
 			// Exit with appropriate code in CI mode
 			if exitCode != 0 {
@@ -292,25 +314,25 @@ func newReportCmd() *cobra.Command {
 
 // generateReport handles the report generation logic based on the specified type.
 // Returns an exit code (0 for success, 1 for threshold violations in CI mode)
-func generateReport(
-	reporter *report.Reporter,
-	cfg *config.Config,
-	resultsFile,
-	reportDir,
+func (app *App) generateReport(
+	reporter *report.Reporter, 
+	cfg *config.Config, 
+	resultsFile, 
+	reportDir, 
 	reportType string,
 ) int {
 	// Generate specific report type if requested
 	if reportType != "" {
-		return generateSingleReport(reporter, resultsFile, reportDir, reportType)
+		return app.generateSingleReport(reporter, resultsFile, reportDir, reportType)
 	}
 
 	// Otherwise generate all configured report formats
-	return generateAllReports(reporter, cfg, resultsFile, reportDir)
+	return app.generateAllReports(reporter, cfg, resultsFile, reportDir)
 }
 
 // generateSingleReport generates a single report of the specified type.
 // Returns an exit code (always 0 for single reports as thresholds aren't checked)
-func generateSingleReport(
+func (app *App) generateSingleReport(
 	reporter *report.Reporter,
 	resultsFile,
 	reportDir,
@@ -338,7 +360,7 @@ func generateSingleReport(
 
 // generateAllReports generates all configured report formats.
 // Returns an exit code (0 for success, 1 for threshold violations in CI mode)
-func generateAllReports(
+func (app *App) generateAllReports(
 	reporter *report.Reporter,
 	cfg *config.Config,
 	resultsFile,
@@ -362,7 +384,7 @@ func generateAllReports(
 	for _, report := range results {
 		if !report.Passed {
 			_, _ = fmt.Printf("⚠️ Threshold violations detected in %s report\n", report.Format)
-			if ciMode {
+			if app.Options.CIMode {
 				exitCode = 1
 			}
 		}
