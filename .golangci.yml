@@ -1,0 +1,51 @@
+linters:
+  enable:
+    - errcheck
+    - gofmt
+    - goimports
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - typecheck
+    - unused
+    - gosec
+    - bodyclose
+    - dupl
+    - goconst
+    - gocyclo
+    - godot
+    - gofumpt
+    - lll
+    - nakedret
+    - prealloc
+    - revive
+    - stylecheck
+    - thelper
+    - unconvert
+    - unparam
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  lll:
+    line-length: 120
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - lll
+        - dupl
+        - gosec
+
+run:
+  timeout: 5m
+  skip-dirs:
+    - scripts

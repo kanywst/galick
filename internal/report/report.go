@@ -2,6 +2,7 @@
 package report
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/kanywst/galick/internal/config"
 )
+
+// HTML template is provided in html.go
 
 // Reporter generates reports from Vegeta output files
 type Reporter struct {
@@ -29,23 +32,23 @@ type ReportResult struct {
 
 // Metrics represents the load test metrics
 type Metrics struct {
-	SuccessRate float64       `json:"success"`
+	SuccessRate float64        `json:"success"`
 	Latencies   LatencyMetrics `json:"latencies"`
-	Throughput  float64       `json:"throughput"`
-	Duration    int64         `json:"duration"`
-	Requests    int           `json:"requests"`
+	Throughput  float64        `json:"throughput"`
+	Duration    int64          `json:"duration"`
+	Requests    int            `json:"requests"`
 }
 
 // LatencyMetrics represents latency metrics
 type LatencyMetrics struct {
-	Min    int64   `json:"min"`
-	Mean   int64   `json:"mean"`
-	P50    int64   `json:"50th"`
-	P90    int64   `json:"90th"`
-	P95    int64   `json:"95th"`
-	P99    int64   `json:"99th"`
-	Max    int64   `json:"max"`
-	StdDev int64   `json:"stdev"`
+	Min    int64 `json:"min"`
+	Mean   int64 `json:"mean"`
+	P50    int64 `json:"50th"`
+	P90    int64 `json:"90th"`
+	P95    int64 `json:"95th"`
+	P99    int64 `json:"99th"`
+	Max    int64 `json:"max"`
+	StdDev int64 `json:"stdev"`
 }
 
 // NewReporter creates a new reporter instance
@@ -59,6 +62,20 @@ func NewReporter() *Reporter {
 
 // GenerateReports generates all configured report formats
 func (r *Reporter) GenerateReports(resultFile, outputDir, scenario, environment string, cfg *config.Config) ([]ReportResult, error) {
+	// Validate input parameters
+	if resultFile == "" {
+		return nil, fmt.Errorf("result file path is empty")
+	}
+
+	if outputDir == "" {
+		return nil, fmt.Errorf("output directory path is empty")
+	}
+
+	// Check if result file exists
+	if _, err := os.Stat(resultFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("result file not found: %s", resultFile)
+	}
+
 	// Extract metrics for threshold validation
 	metrics, err := r.extractMetrics(resultFile)
 	if err != nil {
@@ -81,7 +98,7 @@ func (r *Reporter) GenerateReports(resultFile, outputDir, scenario, environment 
 	results := make([]ReportResult, 0, len(formats))
 	for _, format := range formats {
 		outputFile := filepath.Join(outputDir, fmt.Sprintf("report.%s", formatExtension(format)))
-		
+
 		err := r.GenerateReport(resultFile, outputFile, format, metrics)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate %s report: %w", format, err)
@@ -113,6 +130,17 @@ func (r *Reporter) GenerateReports(resultFile, outputDir, scenario, environment 
 			if err := os.WriteFile(result.FilePath, []byte(mdReport), 0644); err != nil {
 				return nil, fmt.Errorf("failed to write markdown report: %w", err)
 			}
+		} else if result.Format == "html" {
+			// Generate HTML with threshold annotations
+			htmlReport, err := r.GenerateHTMLReport(scenario, environment, metrics, cfg.Report.Thresholds)
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate HTML report: %w", err)
+			}
+
+			// Write the HTML report
+			if err := os.WriteFile(result.FilePath, []byte(htmlReport), 0644); err != nil {
+				return nil, fmt.Errorf("failed to write HTML report: %w", err)
+			}
 		}
 	}
 
@@ -133,18 +161,25 @@ func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics
 			return err
 		}
 		outputData = []byte(mdReport)
+	} else if format == "html" && metrics != nil {
+		// Generate HTML report
+		htmlReport, err := r.GenerateHTMLReport("", "", metrics, nil)
+		if err != nil {
+			return err
+		}
+		outputData = []byte(htmlReport)
 	} else {
 		// For other formats, use vegeta's report command
 		args = []string{"report"}
-		
+
 		// Add format flag for non-text formats
 		if format != "text" {
 			args = append(args, "-type="+format)
 		}
-		
+
 		// Add input file
-		args = append(args, "-inputs="+resultFile)
-		
+		args = append(args, resultFile)
+
 		// Execute vegeta report command
 		outputData, err = r.execCommand("vegeta", args...)
 		if err != nil {
@@ -176,7 +211,7 @@ func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]strin
 		}
 
 		if metrics.SuccessRate*100 < threshold {
-			violations = append(violations, 
+			violations = append(violations,
 				fmt.Sprintf("success_rate: %.2f%% < %.2f%%", metrics.SuccessRate*100, threshold))
 		}
 	}
@@ -221,7 +256,7 @@ func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]strin
 
 		// Compare actual value to threshold
 		if actualValue > thresholdValue {
-			violations = append(violations, 
+			violations = append(violations,
 				fmt.Sprintf("%s: %.0fms > %.0fms", metric, actualValue, thresholdValue))
 		}
 	}
@@ -235,7 +270,7 @@ func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]strin
 
 		errorRate := (1 - metrics.SuccessRate) * 100
 		if errorRate > threshold {
-			violations = append(violations, 
+			violations = append(violations,
 				fmt.Sprintf("error_rate: %.2f%% > %.2f%%", errorRate, threshold))
 		}
 	}
@@ -357,7 +392,7 @@ func (r *Reporter) GenerateMarkdownReport(scenario, environment string, metrics 
 // extractMetrics extracts metrics from a Vegeta result file
 func (r *Reporter) extractMetrics(resultFile string) (*Metrics, error) {
 	// Run vegeta report with JSON output
-	output, err := r.execCommand("vegeta", "report", "-type=json", "-inputs="+resultFile)
+	output, err := r.execCommand("vegeta", "report", "-type=json", resultFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract metrics: %w", err)
 	}
@@ -369,6 +404,11 @@ func (r *Reporter) extractMetrics(resultFile string) (*Metrics, error) {
 	}
 
 	return &metrics, nil
+}
+
+// ExtractMetrics extracts metrics from a Vegeta result file (public version)
+func (r *Reporter) ExtractMetrics(resultFile string) (*Metrics, error) {
+	return r.extractMetrics(resultFile)
 }
 
 // formatExtension returns the file extension for a given format
@@ -383,6 +423,11 @@ func formatExtension(format string) string {
 	default:
 		return "txt"
 	}
+}
+
+// FormatExtension returns the file extension for a given format (public version)
+func FormatExtension(format string) string {
+	return formatExtension(format)
 }
 
 // parseLatencyThreshold parses a latency threshold string (e.g., "200ms") into milliseconds

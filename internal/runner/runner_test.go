@@ -94,7 +94,12 @@ func TestRunScenario(t *testing.T) {
 	// Create a mock runner that doesn't actually execute commands
 	mockRunner := &Runner{
 		execCommand: func(cmd string, args ...string) ([]byte, error) {
-			// Just return success without running anything
+			// Create a dummy results file to simulate successful execution
+			resultsFile := filepath.Join(tempDir, "results.bin")
+			err := os.WriteFile(resultsFile, []byte("mock vegeta binary data"), 0644)
+			if err != nil {
+				return nil, err
+			}
 			return []byte("Mocked execution"), nil
 		},
 	}

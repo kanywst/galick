@@ -1,0 +1,141 @@
+name: Galick CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test against'
+        required: true
+        default: 'dev'
+      scenario:
+        description: 'Scenario to run'
+        required: true
+        default: 'simple'
+      threshold_failure:
+        description: 'Fail workflow on threshold violations'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  get-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      go-version: ${{ steps.extract.outputs.go-version }}
+      vegeta-version: ${{ steps.extract.outputs.vegeta-version }}
+      golangci-lint-version: ${{ steps.extract.outputs.golangci-lint-version }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Extract versions from Makefile
+        id: extract
+        run: |
+          echo "go-version=$(grep "GO_VERSION=" Makefile | cut -d= -f2)" >> $GITHUB_OUTPUT
+          echo "vegeta-version=$(grep "VEGETA_VERSION=" Makefile | cut -d= -f2)" >> $GITHUB_OUTPUT
+          echo "golangci-lint-version=$(grep "GOLANGCI_LINT_VERSION=" Makefile | cut -d= -f2)" >> $GITHUB_OUTPUT
+
+  lint-and-test:
+    name: Lint and Test
+    needs: get-versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ needs.get-versions.outputs.go-version }}
+          cache: true
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ needs.get-versions.outputs.golangci-lint-version }}
+          args: --timeout=5m
+
+      - name: Run golangci-lint
+        run: golangci-lint run ./...
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.txt
+          fail_ci_if_error: false
+
+  load-test:
+    name: Load Test
+    needs: [get-versions, lint-and-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ needs.get-versions.outputs.go-version }}
+
+      - name: Install Vegeta
+        run: |
+          VEGETA_VERSION="${{ needs.get-versions.outputs.vegeta-version }}"
+          # バージョン先頭のvを削除
+          VEGETA_VERSION_CLEAN=${VEGETA_VERSION#v}
+          wget https://github.com/tsenart/vegeta/releases/download/${VEGETA_VERSION}/vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz
+          tar xzf vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz
+          sudo mv vegeta /usr/local/bin/
+
+      - name: Build Galick
+        run: |
+          make build
+          sudo mv bin/galick /usr/local/bin/
+
+      - name: Start Demo Server
+        if: github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
+        run: |
+          go build -o demo-server ./scripts/demo-server.go
+          ./demo-server &
+          sleep 2  # Wait for server to start
+
+      - name: Run Load Tests (Manual Trigger)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          CI=${{ inputs.threshold_failure }} galick run ${{ inputs.scenario }} --env ${{ inputs.environment }}
+
+      - name: Run Load Tests (Automated)
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          CI=true galick run
+
+      - name: Generate HTML Report
+        run: |
+          galick report --format html
+
+      - name: Stop Demo Server
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
+        run: |
+          pkill -f demo-server || true
+
+      - name: Upload Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-reports
+          path: output/
+
+      - name: Check for Threshold Violations
+        run: |
+          if grep -q "❌ FAILED" output/*/*/report.md; then
+            echo "::warning::Threshold violations detected in load test results"
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.threshold_failure }}" == "true" ]] || [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+              echo "::error::Load test thresholds violated"
+              exit 1
+            fi
+          else
+            echo "All thresholds passed! 🎉"
+          fi

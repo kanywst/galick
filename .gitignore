@@ -1,0 +1,42 @@
+# Compiled binaries
+galick
+main
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+*.prof
+
+# Demo output
+damo.tape
+galick-demo.gif
+
+# VHS temporary files
+.vhs/
+
+# Dependency directories
+vendor/
+
+# Output directories
+output/
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Demo server binary
+demo-server

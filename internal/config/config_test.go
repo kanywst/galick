@@ -86,7 +86,7 @@ hooks:
 	assert.Contains(t, cfg.Report.Formats, "json")
 	assert.Contains(t, cfg.Report.Formats, "markdown")
 	assert.Equal(t, "200ms", cfg.Report.Thresholds["p95"])
-	
+
 	// Check error_rate value if it exists (value might be normalized)
 	errorRateValue, exists := cfg.Report.Thresholds["error_rate"]
 	if exists {
@@ -119,7 +119,7 @@ func TestDefaultConfigFile(t *testing.T) {
 	// Test with loadtest.yaml
 	err = os.WriteFile("loadtest.yaml", []byte(yamlContent), 0644)
 	assert.NoError(t, err)
-	
+
 	// Add minimal environment and scenario sections for validation to pass
 	minimalYaml := `
 default:
@@ -137,18 +137,18 @@ scenarios:
 `
 	err = os.WriteFile("loadtest.yaml", []byte(minimalYaml), 0644)
 	assert.NoError(t, err)
-	
+
 	cfg, err := FindAndLoadConfig("")
 	assert.NoError(t, err)
 	assert.Equal(t, "dev", cfg.Default.Environment)
-	
+
 	// Clean up
 	os.Remove("loadtest.yaml")
-	
+
 	// Test with loadtest.yml
 	err = os.WriteFile("loadtest.yml", []byte(minimalYaml), 0644)
 	assert.NoError(t, err)
-	
+
 	cfg, err = FindAndLoadConfig("")
 	assert.NoError(t, err)
 	assert.Equal(t, "dev", cfg.Default.Environment)

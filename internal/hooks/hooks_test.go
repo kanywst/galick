@@ -35,7 +35,7 @@ exit 0
 	// Create a hook runner with mock execution
 	var executedCommand string
 	var executedArgs []string
-	
+
 	runner := &HookRunner{
 		execCommand: func(command string, args ...string) ([]byte, error) {
 			executedCommand = command
@@ -83,7 +83,7 @@ exit 0
 	// Create a hook runner with mock execution
 	var executedCommand string
 	var executedArgs []string
-	
+
 	runner := &HookRunner{
 		execCommand: func(command string, args ...string) ([]byte, error) {
 			executedCommand = command

@@ -1,0 +1,43 @@
+# galick load test configuration
+
+default:
+  environment: dev
+  scenario: simple
+  output_dir: output
+
+environments:
+  dev:
+    base_url: http://localhost:8080
+    headers:
+      Content-Type: application/json
+  staging:
+    base_url: https://staging.example.com
+    headers:
+      Content-Type: application/json
+      Authorization: Bearer YOUR_TOKEN
+
+scenarios:
+  simple:
+    rate: 10/s
+    duration: 30s
+    targets:
+      - GET /api/health
+      - GET /api/users
+  heavy:
+    rate: 50/s
+    duration: 60s
+    targets:
+      - GET /api/products
+      - POST /api/orders
+
+report:
+  formats:
+    - json
+    - markdown
+  thresholds:
+    p95: 200ms
+    success_rate: 99.0
+
+hooks:
+  pre: ./scripts/pre-load.sh
+  post: ./scripts/post-load.sh

@@ -78,14 +78,14 @@ func TestGenerateReportFormats(t *testing.T) {
 
 	// Test Markdown format
 	mdPath := filepath.Join(tempDir, "report.md")
-	
+
 	// For markdown, we'll use our markdown generator instead of vegeta's output
 	mdReport, err := mockReporter.GenerateMarkdownReport("Test Scenario", "Test Env", mockMetrics, nil)
 	assert.NoError(t, err)
-	
+
 	err = os.WriteFile(mdPath, []byte(mdReport), 0644)
 	assert.NoError(t, err)
-	
+
 	mdContent, err := os.ReadFile(mdPath)
 	assert.NoError(t, err)
 	assert.Contains(t, string(mdContent), "# Load Test Report")
@@ -201,7 +201,7 @@ func TestGenerateMarkdownReport(t *testing.T) {
 	assert.Contains(t, report, "**Environment:** test-env")
 	assert.Contains(t, report, "Success Rate | 95.5%")
 	assert.Contains(t, report, "p95 | 120ms")
-	
+
 	// Check that the threshold warning is included
 	assert.Contains(t, report, "Threshold Violations")
 	assert.Contains(t, report, "p95: 120ms > 100ms")
@@ -259,17 +259,17 @@ func TestGenerateReports(t *testing.T) {
 	// Generate reports
 	results, err := mockReporter.GenerateReports(resultFilePath, tempDir, "test-scenario", "test-env", cfg)
 	assert.NoError(t, err)
-	
+
 	// Check that we have 3 report files
 	assert.Len(t, results, 3)
-	
+
 	// Check that all formats were generated
 	formats := make(map[string]bool)
 	for _, result := range results {
 		formats[result.Format] = true
 		assert.FileExists(t, result.FilePath)
 	}
-	
+
 	assert.True(t, formats["json"])
 	assert.True(t, formats["html"])
 	assert.True(t, formats["markdown"])

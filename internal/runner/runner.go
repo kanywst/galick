@@ -72,7 +72,16 @@ func (r *Runner) RunScenario(cfg *config.Config, scenarioName, environmentName, 
 		if strings.Contains(err.Error(), "executable file not found") {
 			return nil, fmt.Errorf("vegeta command not found. Please install Vegeta (https://github.com/tsenart/vegeta) and make sure it's in your PATH")
 		}
+		// Check if output contains permission denied
+		if strings.Contains(string(output), "permission denied") {
+			return nil, fmt.Errorf("permission denied when executing vegeta. Make sure vegeta is executable")
+		}
 		return nil, fmt.Errorf("vegeta attack failed: %w\n%s", err, string(output))
+	}
+
+	// Check if output file was created
+	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("output file was not created, vegeta may have failed silently")
 	}
 
 	return &Result{
@@ -109,19 +118,39 @@ func (r *Runner) createTargetsFile(targets []string, environment *config.Environ
 	// Create a temporary file
 	file, err := os.CreateTemp("", "vegeta-targets-*.txt")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create temporary targets file: %w", err)
 	}
 	defer file.Close()
 
+	// Validate environment
+	if environment.BaseURL == "" {
+		return "", fmt.Errorf("environment base URL is empty")
+	}
+
 	// Write targets to the file
-	for _, target := range targets {
+	for i, target := range targets {
 		parts := strings.SplitN(target, " ", 2)
 		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid target format: %s (expected 'METHOD /path')", target)
+			return "", fmt.Errorf("invalid target format at index %d: %s (expected 'METHOD /path')", i, target)
 		}
 
 		method := parts[0]
 		path := parts[1]
+
+		// Validate method
+		method = strings.ToUpper(method)
+		validMethods := map[string]bool{
+			"GET":     true,
+			"POST":    true,
+			"PUT":     true,
+			"DELETE":  true,
+			"PATCH":   true,
+			"HEAD":    true,
+			"OPTIONS": true,
+		}
+		if !validMethods[method] {
+			return "", fmt.Errorf("invalid HTTP method at index %d: %s", i, method)
+		}
 
 		// Ensure the path starts with /
 		if !strings.HasPrefix(path, "/") {

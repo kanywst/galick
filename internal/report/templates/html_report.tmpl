@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galick Load Test Report</title>
+    <style>
+        :root {
+            --primary-color: #7f67d5;
+            --primary-dark: #5844b5;
+            --success-color: #4CAF50;
+            --warning-color: #FFC107;
+            --error-color: #F44336;
+            --text-color: #333;
+            --background-color: #f9f9f9;
+            --card-background: #fff;
+            --border-color: #e0e0e0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1, h2, h3 {
+            color: var(--primary-dark);
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+        }
+        
+        .summary-card {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .metric-card {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .metric-label {
+            color: #666;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .success {
+            color: var(--success-color);
+        }
+        
+        .warning {
+            color: var(--warning-color);
+        }
+        
+        .error {
+            color: var(--error-color);
+        }
+        
+        .threshold-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .threshold-table th, .threshold-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .threshold-table th {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .threshold-table tr:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .status-passed {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .status-failed {
+            background-color: var(--error-color);
+            color: white;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary-color: #9d89e3;
+                --primary-dark: #7f67d5;
+                --text-color: #f0f0f0;
+                --background-color: #121212;
+                --card-background: #1e1e1e;
+                --border-color: #333;
+            }
+            
+            .threshold-table th {
+                background-color: var(--primary-dark);
+            }
+            
+            .threshold-table tr:hover {
+                background-color: rgba(255, 255, 255, 0.05);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Galick Load Test Report</h1>
+            <p>Environment: {{.Environment}} | Scenario: {{.Scenario}} | Date: {{.Date}}</p>
+        </header>
+        
+        <div class="summary-card">
+            <h2>Summary</h2>
+            <p>Total Requests: {{.Metrics.Requests}} | Duration: {{.Duration}}</p>
+            <p>Overall Result: 
+                {{if .Passed}}
+                <span class="status-badge status-passed">PASSED</span>
+                {{else}}
+                <span class="status-badge status-failed">FAILED</span>
+                {{end}}
+            </p>
+        </div>
+        
+        <h2>Key Metrics</h2>
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Success Rate</div>
+                <div class="metric-value {{if .SuccessRateStatus}}success{{else}}error{{end}}">
+                    {{.SuccessRate}}%
+                </div>
+                {{if .SuccessRateThreshold}}
+                <div>Threshold: {{.SuccessRateThreshold}}%</div>
+                {{end}}
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">P95 Latency</div>
+                <div class="metric-value {{if .P95Status}}success{{else}}error{{end}}">
+                    {{.P95Latency}}
+                </div>
+                {{if .P95Threshold}}
+                <div>Threshold: {{.P95Threshold}}</div>
+                {{end}}
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Throughput</div>
+                <div class="metric-value">
+                    {{.Throughput}} req/sec
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Mean Latency</div>
+                <div class="metric-value">
+                    {{.MeanLatency}}
+                </div>
+            </div>
+        </div>
+        
+        <h2>Threshold Results</h2>
+        <table class="threshold-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Threshold</th>
+                    <th>Actual</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .ThresholdResults}}
+                <tr>
+                    <td>{{.Metric}}</td>
+                    <td>{{.Threshold}}</td>
+                    <td>{{.Actual}}</td>
+                    <td>
+                        {{if .Passed}}
+                        <span class="status-badge status-passed">PASSED</span>
+                        {{else}}
+                        <span class="status-badge status-failed">FAILED</span>
+                        {{end}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        
+        <footer>
+            <p>Generated with <a href="https://github.com/kanywst/galick">Galick</a> - Vegeta Load Testing Supercharged</p>
+        </footer>
+    </div>
+</body>
+</html>

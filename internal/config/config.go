@@ -111,6 +111,16 @@ func (c *Config) Validate() error {
 		return errors.New("default scenario is not set")
 	}
 
+	// Check if environments are defined
+	if len(c.Environments) == 0 {
+		return errors.New("no environments defined in configuration")
+	}
+
+	// Check if scenarios are defined
+	if len(c.Scenarios) == 0 {
+		return errors.New("no scenarios defined in configuration")
+	}
+
 	// Check if the default environment exists
 	if _, exists := c.Environments[c.Default.Environment]; !exists {
 		return fmt.Errorf("default environment '%s' does not exist in the environments section", c.Default.Environment)
@@ -119,6 +129,26 @@ func (c *Config) Validate() error {
 	// Check if the default scenario exists
 	if _, exists := c.Scenarios[c.Default.Scenario]; !exists {
 		return fmt.Errorf("default scenario '%s' does not exist in the scenarios section", c.Default.Scenario)
+	}
+
+	// Validate environments
+	for name, env := range c.Environments {
+		if env.BaseURL == "" {
+			return fmt.Errorf("environment '%s' is missing a base_url", name)
+		}
+	}
+
+	// Validate scenarios
+	for name, scenario := range c.Scenarios {
+		if scenario.Rate == "" {
+			return fmt.Errorf("scenario '%s' is missing a rate", name)
+		}
+		if scenario.Duration == "" {
+			return fmt.Errorf("scenario '%s' is missing a duration", name)
+		}
+		if len(scenario.Targets) == 0 {
+			return fmt.Errorf("scenario '%s' has no targets defined", name)
+		}
 	}
 
 	return nil
