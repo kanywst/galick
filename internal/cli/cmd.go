@@ -234,8 +234,6 @@ func newRunCmd() *cobra.Command {
 	return cmd
 }
 
-// NOTE: prepareRunParameters, runParameters, and executeScenario functions are now in run_helpers.go
-
 // newReportCmd creates the report command.
 func newReportCmd() *cobra.Command {
 	var (
