@@ -53,7 +53,7 @@ func (h *HookRunner) RunPreHook(cfg *config.Config) error {
 
 	output, err := h.execCommand(cfg.Hooks.Pre)
 	if err != nil {
-		return fmt.Errorf("pre-hook script execution failed: %w\n%s", err, string(output))
+		return fmt.Errorf("%w: %v\n%s", gerrors.ErrPreHookNotExec, err, string(output))
 	}
 
 	return nil
@@ -73,7 +73,7 @@ func (h *HookRunner) RunPostHook(cfg *config.Config, exitCode int) error {
 	// Check if the script exists and is executable
 	info, err := os.Stat(cfg.Hooks.Post)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("post-hook script not found: %s", cfg.Hooks.Post)
+		return gerrors.WithPostHookNotFoundDetails(cfg.Hooks.Post)
 	}
 
 	if err != nil {
@@ -82,12 +82,12 @@ func (h *HookRunner) RunPostHook(cfg *config.Config, exitCode int) error {
 
 	// On Unix systems, check if the script is executable
 	if info.Mode()&0o111 == 0 {
-		return fmt.Errorf("post-hook script is not executable: %s", cfg.Hooks.Post)
+		return gerrors.ErrPostHookNotExec
 	}
 
 	output, err := h.execCommand(cfg.Hooks.Post, strconv.Itoa(exitCode))
 	if err != nil {
-		return fmt.Errorf("post-hook script execution failed: %w\n%s", err, string(output))
+		return fmt.Errorf("%w: %v\n%s", gerrors.ErrPostHookNotExec, err, string(output))
 	}
 
 	return nil

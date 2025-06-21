@@ -103,22 +103,33 @@ func FindAndLoadConfig(configPath string) (*Config, error) {
 
 // Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
-	// Check if default environment and scenario are set
+	if err := c.validateDefaults(); err != nil {
+		return err
+	}
+	if err := c.validateEnvironments(); err != nil {
+		return err
+	}
+	if err := c.validateScenarios(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateDefaults checks if the default settings are valid.
+func (c *Config) validateDefaults() error {
 	if c.Default.Environment == "" {
 		return gerrors.ErrDefaultEnvNotSet
 	}
 	if c.Default.Scenario == "" {
 		return gerrors.ErrDefaultScenarioNotSet
 	}
+	return nil
+}
 
-	// Check if environments are defined
+// validateEnvironments checks if the environments are valid.
+func (c *Config) validateEnvironments() error {
 	if len(c.Environments) == 0 {
 		return gerrors.ErrNoEnvironmentsDefined
-	}
-
-	// Check if scenarios are defined
-	if len(c.Scenarios) == 0 {
-		return gerrors.ErrNoScenariosDefined
 	}
 
 	// Check if the default environment exists
@@ -126,19 +137,28 @@ func (c *Config) Validate() error {
 		return gerrors.WithDefaultEnvDetails(c.Default.Environment)
 	}
 
-	// Check if the default scenario exists
-	if _, exists := c.Scenarios[c.Default.Scenario]; !exists {
-		return gerrors.WithDefaultScenarioDetails(c.Default.Scenario)
-	}
-
-	// Validate environments
+	// Validate each environment
 	for name, env := range c.Environments {
 		if env.BaseURL == "" {
 			return gerrors.WithEnvMissingBaseURLDetails(name)
 		}
 	}
 
-	// Validate scenarios
+	return nil
+}
+
+// validateScenarios checks if the scenarios are valid.
+func (c *Config) validateScenarios() error {
+	if len(c.Scenarios) == 0 {
+		return gerrors.ErrNoScenariosDefined
+	}
+
+	// Check if the default scenario exists
+	if _, exists := c.Scenarios[c.Default.Scenario]; !exists {
+		return gerrors.WithDefaultScenarioDetails(c.Default.Scenario)
+	}
+
+	// Validate each scenario
 	for name, scenario := range c.Scenarios {
 		if scenario.Rate == "" {
 			return gerrors.WithScenarioMissingRateDetails(name)

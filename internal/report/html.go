@@ -14,7 +14,22 @@ import (
 )
 
 //go:embed templates/html_report.tmpl
-var htmlReportTemplate string
+var htmlTemplateString string
+
+// htmlTemplateCache stores the parsed template to avoid parsing it repeatedly.
+var htmlTemplateCache *template.Template
+
+// getHTMLTemplate returns the parsed HTML template, initializing it if needed.
+func getHTMLTemplate() (*template.Template, error) {
+	if htmlTemplateCache == nil {
+		tmpl, err := template.New("html").Parse(htmlTemplateString)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse HTML template: %w", err)
+		}
+		htmlTemplateCache = tmpl
+	}
+	return htmlTemplateCache, nil
+}
 
 // HTMLData contains data for HTML report template.
 type HTMLData struct {
@@ -53,10 +68,10 @@ func (r *Reporter) GenerateHTMLReport(
 		return "", gerrors.ErrMetricsNil
 	}
 
-	// Parse the template
-	tmpl, err := template.New("html").Parse(htmlReportTemplate)
+	// Get the cached template
+	tmpl, err := getHTMLTemplate()
 	if err != nil {
-		return "", fmt.Errorf("failed to parse HTML template: %w", err)
+		return "", err
 	}
 
 	// Check thresholds and prepare data

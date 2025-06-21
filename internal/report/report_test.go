@@ -44,17 +44,19 @@ func TestGenerateReportFormats(t *testing.T) {
 	mockReporter := &Reporter{
 		execCommand: func(_ string, args ...string) ([]byte, error) {
 			// Just return sample data based on the format
-			if len(args) > 0 {
-				switch args[0] {
-				case "report":
-					if len(args) > 1 && args[1] == "-type=json" {
+			if len(args) == 0 {
+				return []byte("Unknown format"), nil
+			}
+
+			if args[0] == "report" {
+				if len(args) > 1 {
+					if args[1] == "-type=json" {
 						return []byte(`{"success":1.0,"latency":{"95th":0.15}}`), nil
-					}
-					if len(args) > 1 && args[1] == "-type=html" {
+					} else if args[1] == "-type=html" {
 						return []byte("<html><body>Report</body></html>"), nil
 					}
-					return []byte("Success rate: 100%\nLatency p95: 150ms"), nil
 				}
+				return []byte("Success rate: 100%\nLatency p95: 150ms"), nil
 			}
 			return []byte("Unknown format"), nil
 		},

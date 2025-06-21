@@ -4,6 +4,7 @@ package errors
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Common errors.
@@ -25,11 +26,11 @@ var (
 	ErrConfigNil               = errors.New("config is nil")
 
 	// Hook errors
-	ErrPreHookNotFound    = errors.New("pre-hook script not found")
-	ErrPreHookNotExec     = errors.New("pre-hook script is not executable")
-	ErrPostHookNotFound   = errors.New("post-hook script not found")
-	ErrPostHookNotExec    = errors.New("post-hook script is not executable")
-	
+	ErrPreHookNotFound  = errors.New("pre-hook script not found")
+	ErrPreHookNotExec   = errors.New("pre-hook script is not executable")
+	ErrPostHookNotFound = errors.New("post-hook script not found")
+	ErrPostHookNotExec  = errors.New("post-hook script is not executable")
+
 	// Report errors
 	ErrMetricsNil         = errors.New("metrics are nil")
 	ErrResultFileEmpty    = errors.New("result file path is empty")
@@ -38,8 +39,8 @@ var (
 	ErrThresholdViolation = errors.New("threshold violations")
 
 	// Latency errors
-	ErrInvalidMsValue   = errors.New("invalid value for milliseconds")
-	ErrInvalidSecValue  = errors.New("invalid value for seconds")
+	ErrInvalidMsValue     = errors.New("invalid value for milliseconds")
+	ErrInvalidSecValue    = errors.New("invalid value for seconds")
 	ErrUnknownLatencyUnit = errors.New("unknown latency unit in threshold")
 
 	// Vegeta errors
@@ -126,7 +127,7 @@ func WithResultFileNotFoundDetails(path string) error {
 
 // WithThresholdViolationDetails adds the violations to the threshold violation error.
 func WithThresholdViolationDetails(violations []string) error {
-	return fmt.Errorf("%w: %s", ErrThresholdViolation, violations)
+	return fmt.Errorf("%w: %s", ErrThresholdViolation, strings.Join(violations, ", "))
 }
 
 // WithInvalidMsValueDetails adds the threshold to the invalid milliseconds error.

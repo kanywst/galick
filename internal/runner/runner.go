@@ -57,33 +57,9 @@ func (r *Runner) RunScenario(cfg *config.Config, scenarioName, environmentName, 
 	// Output file path.
 	outputFile := filepath.Join(outputFolder, "results.bin")
 
-	// Build and execute the Vegeta command.
-	cmd, targetsFile, err := r.buildVegetaCommand(scenario, environment, outputFile)
-	if err != nil {
+	// Prepare and execute the load test
+	if err := r.executeLoadTest(scenario, environment, outputFile); err != nil {
 		return nil, err
-	}
-	defer os.Remove(targetsFile)
-
-	// Execute the command.
-	output, err := r.execCommand(cmd.Path, cmd.Args[1:]...)
-	if err != nil {
-		switch {
-		case r.isExitError(err):
-			var exitErr *exec.ExitError
-			errors.As(err, &exitErr)
-			return nil, fmt.Errorf("%w with exit code %d: %s", gerrors.ErrVegetaAttackFailed, exitErr.ExitCode(), string(output))
-		case r.isCommandNotFound(err):
-			return nil, gerrors.ErrVegetaNotFound
-		case r.isPermissionDenied(string(output)):
-			return nil, gerrors.ErrVegetaNotExec
-		default:
-			return nil, fmt.Errorf("%w: %v\n%s", gerrors.ErrVegetaAttackFailed, err, string(output))
-		}
-	}
-
-	// Check if output file was created.
-	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
-		return nil, gerrors.ErrOutputNotCreated
 	}
 
 	return &Result{
@@ -92,6 +68,45 @@ func (r *Runner) RunScenario(cfg *config.Config, scenarioName, environmentName, 
 		Scenario:     scenarioName,
 		OutputFolder: outputFolder,
 	}, nil
+}
+
+// executeLoadTest prepares and executes the Vegeta command.
+func (r *Runner) executeLoadTest(scenario *config.Scenario, environment *config.Environment, outputFile string) error {
+	// Build and execute the Vegeta command.
+	cmd, targetsFile, err := r.buildVegetaCommand(scenario, environment, outputFile)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(targetsFile)
+
+	// Execute the command.
+	output, err := r.execCommand(cmd.Path, cmd.Args[1:]...)
+	if err != nil {
+		return r.handleVegetaError(err, output)
+	}
+
+	// Check if output file was created.
+	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
+		return gerrors.ErrOutputNotCreated
+	}
+
+	return nil
+}
+
+// handleVegetaError processes different types of errors from Vegeta execution.
+func (r *Runner) handleVegetaError(err error, output []byte) error {
+	switch {
+	case r.isExitError(err):
+		var exitErr *exec.ExitError
+		errors.As(err, &exitErr)
+		return fmt.Errorf("%w with exit code %d: %s", gerrors.ErrVegetaAttackFailed, exitErr.ExitCode(), string(output))
+	case r.isCommandNotFound(err):
+		return gerrors.ErrVegetaNotFound
+	case r.isPermissionDenied(string(output)):
+		return gerrors.ErrVegetaNotExec
+	default:
+		return fmt.Errorf("%w: %v\n%s", gerrors.ErrVegetaAttackFailed, err, string(output))
+	}
 }
 
 // buildVegetaCommand constructs the Vegeta command and creates a temporary targets file.
@@ -189,13 +204,15 @@ func (r *Runner) validateTarget(target string, index int) (string, string, error
 // buildFullURL builds a full URL from a base URL and path.
 func (r *Runner) buildFullURL(baseURL, path string) string {
 	url := baseURL
-	if strings.HasSuffix(url, "/") && strings.HasPrefix(path, "/") {
+
+	switch {
+	case strings.HasSuffix(url, "/") && strings.HasPrefix(path, "/"):
 		// Avoid double slash if base URL ends with / and path starts with "/".
 		url += strings.TrimPrefix(path, "/")
-	} else if !strings.HasSuffix(url, "/") && !strings.HasPrefix(path, "/") {
+	case !strings.HasSuffix(url, "/") && !strings.HasPrefix(path, "/"):
 		// Add slash if neither has it.
 		url += "/" + path
-	} else {
+	default:
 		// Either base ends with / or path starts with / but not both.
 		url += path
 	}
@@ -215,7 +232,7 @@ func (r *Runner) writeTargetToFile(file *os.File, method, url string, headers ma
 			return err
 		}
 	}
-	
+
 	// Empty line to separate targets.
 	if err := r.writeLineToFile(file, ""); err != nil {
 		return err
@@ -232,7 +249,7 @@ func (r *Runner) writeLineToFile(file *os.File, line string) error {
 	} else {
 		_, err = fmt.Fprintln(file, line)
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
 	}

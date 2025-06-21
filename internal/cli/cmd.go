@@ -267,54 +267,8 @@ func newReportCmd() *cobra.Command {
 			// Create reporter
 			reporter := report.NewReporter()
 
-			// Generate specific report type if requested
-			if reportType != "" {
-				_, _ = fmt.Printf("Generating %s report...\n", reportType)
-				outputFile := filepath.Join(reportDir, fmt.Sprintf("report.%s", report.FormatExtension(reportType)))
-
-				// Extract metrics for threshold validation
-				metrics, err := reporter.ExtractMetrics(resultsFile)
-				if err != nil {
-					_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
-					os.Exit(1)
-				}
-
-				err = reporter.GenerateReport(resultsFile, outputFile, reportType, metrics)
-				if err != nil {
-					_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
-					os.Exit(1)
-				}
-
-				_, _ = fmt.Printf("Report saved to: %s\n", outputFile)
-				return
-			}
-
-			// Otherwise generate all configured report formats
-			_, _ = fmt.Println("Generating reports...")
-			results, err := reporter.GenerateReports(
-				resultsFile,
-				reportDir,
-				"", // scenario name not used for standalone reports
-				"", // environment name not used for standalone reports
-				cfg,
-			)
-
-			if err != nil {
-				_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
-				os.Exit(1)
-			}
-
-			// Display report results
-			exitCode := 0
-			for _, report := range results {
-				if !report.Passed {
-					_, _ = fmt.Printf("⚠️ Threshold violations detected in %s report\n", report.Format)
-					if ciMode {
-						exitCode = 1
-					}
-				}
-				_, _ = fmt.Printf("Report saved to: %s\n", report.FilePath)
-			}
+			// Generate report based on type
+			exitCode := generateReport(reporter, cfg, resultsFile, reportDir, reportType)
 
 			// Exit with appropriate code in CI mode
 			if exitCode != 0 {
@@ -334,4 +288,86 @@ func newReportCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&reportType, "type", "t", "", "report type (json, text, markdown, html)")
 
 	return cmd
+}
+
+// generateReport handles the report generation logic based on the specified type.
+// Returns an exit code (0 for success, 1 for threshold violations in CI mode)
+func generateReport(
+	reporter *report.Reporter,
+	cfg *config.Config,
+	resultsFile,
+	reportDir,
+	reportType string,
+) int {
+	// Generate specific report type if requested
+	if reportType != "" {
+		return generateSingleReport(reporter, resultsFile, reportDir, reportType)
+	}
+
+	// Otherwise generate all configured report formats
+	return generateAllReports(reporter, cfg, resultsFile, reportDir)
+}
+
+// generateSingleReport generates a single report of the specified type.
+// Returns an exit code (always 0 for single reports as thresholds aren't checked)
+func generateSingleReport(
+	reporter *report.Reporter,
+	resultsFile,
+	reportDir,
+	reportType string,
+) int {
+	_, _ = fmt.Printf("Generating %s report...\n", reportType)
+	outputFile := filepath.Join(reportDir, fmt.Sprintf("report.%s", report.FormatExtension(reportType)))
+
+	// Extract metrics for threshold validation
+	metrics, err := reporter.ExtractMetrics(resultsFile)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
+	}
+
+	err = reporter.GenerateReport(resultsFile, outputFile, reportType, metrics)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
+	}
+
+	_, _ = fmt.Printf("Report saved to: %s\n", outputFile)
+	return 0
+}
+
+// generateAllReports generates all configured report formats.
+// Returns an exit code (0 for success, 1 for threshold violations in CI mode)
+func generateAllReports(
+	reporter *report.Reporter,
+	cfg *config.Config,
+	resultsFile,
+	reportDir string,
+) int {
+	_, _ = fmt.Println("Generating reports...")
+	results, err := reporter.GenerateReports(
+		resultsFile,
+		reportDir,
+		"", // scenario name not used for standalone reports
+		"", // environment name not used for standalone reports
+		cfg,
+	)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
+	}
+
+	// Display report results
+	exitCode := 0
+	for _, report := range results {
+		if !report.Passed {
+			_, _ = fmt.Printf("⚠️ Threshold violations detected in %s report\n", report.Format)
+			if ciMode {
+				exitCode = 1
+			}
+		}
+		_, _ = fmt.Printf("Report saved to: %s\n", report.FilePath)
+	}
+
+	return exitCode
 }

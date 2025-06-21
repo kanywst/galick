@@ -212,22 +212,23 @@ func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics
 	var outputData []byte
 	var err error
 
-	// For markdown format, we handle it specially
-	if format == FormatMarkdown && metrics != nil {
+	// Handle different formats
+	switch {
+	case format == FormatMarkdown && metrics != nil:
 		// Generate basic markdown (will be enhanced later in GenerateReports)
 		mdReport, err := r.GenerateMarkdownReport("", "", metrics, nil)
 		if err != nil {
 			return err
 		}
 		outputData = []byte(mdReport)
-	} else if format == FormatHTML && metrics != nil {
+	case format == FormatHTML && metrics != nil:
 		// Generate HTML report
 		htmlReport, err := r.GenerateHTMLReport("", "", metrics, nil)
 		if err != nil {
 			return err
 		}
 		outputData = []byte(htmlReport)
-	} else {
+	default:
 		// For other formats, use vegeta's report command
 		args = []string{"report"}
 
@@ -309,57 +310,71 @@ func (r *Reporter) checkLatencyThresholds(metrics *Metrics, thresholds map[strin
 	var violations []string
 
 	for metric, thresholdStr := range thresholds {
-		var latencyNs int64
-		var actualValue float64
-		validMetric := true
-
-		switch metric {
-		case "p50", "50th":
-			latencyNs = metrics.Latencies.P50
-			actualValue = float64(latencyNs) / 1000000 // ns to ms
-		case "p90", "90th":
-			latencyNs = metrics.Latencies.P90
-			actualValue = float64(latencyNs) / 1000000
-		case "p95", "95th":
-			latencyNs = metrics.Latencies.P95
-			actualValue = float64(latencyNs) / 1000000
-		case "p99", "99th":
-			latencyNs = metrics.Latencies.P99
-			actualValue = float64(latencyNs) / 1000000
-		case "mean":
-			latencyNs = metrics.Latencies.Mean
-			actualValue = float64(latencyNs) / 1000000
-		case "max":
-			latencyNs = metrics.Latencies.Max
-			actualValue = float64(latencyNs) / 1000000
-		case "success_rate", "error_rate":
-			// Handled separately
-			validMetric = false
-		default:
-			// Skip unknown metrics
-			validMetric = false
-		}
-
-		if !validMetric {
-			continue
-		}
-
-		// Parse threshold value (convert from "200ms" to milliseconds)
-		thresholdValue, err := parseLatencyThreshold(thresholdStr)
-		if err != nil {
-			violations = append(violations,
-				fmt.Sprintf("invalid threshold for %s: %s", metric, err))
-			continue
-		}
-
-		// Compare actual value to threshold
-		if actualValue > thresholdValue {
-			violations = append(violations,
-				fmt.Sprintf("%s: %.0fms > %.0fms", metric, actualValue, thresholdValue))
+		// Validate individual latency threshold
+		violation, valid := r.checkLatencyThreshold(metrics, metric, thresholdStr)
+		if valid {
+			violations = append(violations, violation)
 		}
 	}
 
 	return violations
+}
+
+// getMetricValue extracts the latency value for a specified metric.
+func (r *Reporter) getMetricValue(metrics *Metrics, metric string) (int64, float64, bool) {
+	var latencyNs int64
+	var actualValue float64
+	validMetric := true
+
+	switch metric {
+	case "p50", "50th":
+		latencyNs = metrics.Latencies.P50
+	case "p90", "90th":
+		latencyNs = metrics.Latencies.P90
+	case "p95", "95th":
+		latencyNs = metrics.Latencies.P95
+	case "p99", "99th":
+		latencyNs = metrics.Latencies.P99
+	case "mean":
+		latencyNs = metrics.Latencies.Mean
+	case "max":
+		latencyNs = metrics.Latencies.Max
+	case "success_rate", "error_rate":
+		// Handled separately
+		validMetric = false
+	default:
+		// Skip unknown metrics
+		validMetric = false
+	}
+
+	if validMetric {
+		// Convert nanoseconds to milliseconds
+		actualValue = float64(latencyNs) / 1000000
+	}
+
+	return latencyNs, actualValue, validMetric
+}
+
+// checkLatencyThreshold validates a single latency metric against its threshold.
+func (r *Reporter) checkLatencyThreshold(metrics *Metrics, metric, thresholdStr string) (string, bool) {
+	_, actualValue, validMetric := r.getMetricValue(metrics, metric)
+
+	if !validMetric {
+		return "", false
+	}
+
+	// Parse threshold value (convert from "200ms" to milliseconds)
+	thresholdValue, err := parseLatencyThreshold(thresholdStr)
+	if err != nil {
+		return fmt.Sprintf("invalid threshold for %s: %s", metric, err), true
+	}
+
+	// Compare actual value to threshold
+	if actualValue > thresholdValue {
+		return fmt.Sprintf("%s: %.0fms > %.0fms", metric, actualValue, thresholdValue), true
+	}
+
+	return "", false
 }
 
 // checkErrorRate validates the error rate against its threshold.
@@ -390,8 +405,22 @@ func (r *Reporter) GenerateMarkdownReport(
 	metrics *Metrics,
 	thresholds map[string]string,
 ) (string, error) {
-	// Define the markdown template
-	const mdTemplate = `# Load Test Report
+	// Get the markdown template
+	mdTemplate := getMarkdownTemplate()
+
+	// Check thresholds and collect violations
+	violations := r.collectThresholdViolations(metrics, thresholds)
+
+	// Create template data
+	data := r.createMarkdownTemplateData(scenario, environment, metrics, violations)
+
+	// Generate the report
+	return r.renderMarkdownTemplate(mdTemplate, data)
+}
+
+// getMarkdownTemplate returns the markdown template string.
+func getMarkdownTemplate() string {
+	return `# Load Test Report
 
 {{ if .Scenario }}**Scenario:** {{ .Scenario }}{{ end }}
 {{ if .Environment }}**Environment:** {{ .Environment }}{{ end }}
@@ -427,8 +456,10 @@ func (r *Reporter) GenerateMarkdownReport(
 {{ end }}
 {{ end }}
 `
+}
 
-	// Check thresholds and collect violations
+// collectThresholdViolations checks thresholds and returns a list of violations.
+func (r *Reporter) collectThresholdViolations(metrics *Metrics, thresholds map[string]string) []string {
 	var violations []string
 	if len(thresholds) > 0 {
 		_, err := r.CheckThresholds(metrics, thresholds)
@@ -441,9 +472,16 @@ func (r *Reporter) GenerateMarkdownReport(
 			}
 		}
 	}
+	return violations
+}
 
-	// Create template data
-	data := struct {
+// createMarkdownTemplateData creates the data structure for the markdown template.
+func (r *Reporter) createMarkdownTemplateData(
+	scenario, environment string,
+	metrics *Metrics,
+	violations []string,
+) interface{} {
+	return struct {
 		Scenario    string
 		Environment string
 		Date        string
@@ -478,7 +516,10 @@ func (r *Reporter) GenerateMarkdownReport(
 		StdDev:      fmt.Sprintf("%.0f", float64(metrics.Latencies.StdDev)/1000000),
 		Violations:  violations,
 	}
+}
 
+// renderMarkdownTemplate renders the markdown template with the provided data.
+func (r *Reporter) renderMarkdownTemplate(mdTemplate string, data interface{}) (string, error) {
 	// Parse the template
 	tmpl, err := template.New("markdown").Parse(mdTemplate)
 	if err != nil {
