@@ -315,10 +315,10 @@ func (app *App) newReportCmd() *cobra.Command {
 // generateReport handles the report generation logic based on the specified type.
 // Returns an exit code (0 for success, 1 for threshold violations in CI mode)
 func (app *App) generateReport(
-	reporter *report.Reporter, 
-	cfg *config.Config, 
-	resultsFile, 
-	reportDir, 
+	reporter *report.Reporter,
+	cfg *config.Config,
+	resultsFile,
+	reportDir,
 	reportType string,
 ) int {
 	// Generate specific report type if requested
