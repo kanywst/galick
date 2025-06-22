@@ -6,7 +6,7 @@ DATE=$(shell date +'%FT%TZ')
 # dependencies
 GO_VERSION=1.24
 VEGETA_VERSION=v12.12.0
-GOLANGCI_LINT_VERSION=latest
+GOLANGCI_LINT_VERSION=v2.1.6
 
 .PHONY: build clean test lint setup-dev
 
