@@ -1,6 +1,6 @@
 module github.com/kanywst/galick
 
-go 1.24.4
+go 1.23.0
 
 require (
 	github.com/spf13/cobra v1.9.1

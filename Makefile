@@ -4,7 +4,7 @@ VERSION=$(shell git describe --tags --exact-match --always 2>/dev/null || echo "
 DATE=$(shell date +'%FT%TZ')
 
 # dependencies
-GO_VERSION=1.24
+GO_VERSION=1.23
 VEGETA_VERSION=v12.12.0
 GOLANGCI_LINT_VERSION=v2.1.6
 
