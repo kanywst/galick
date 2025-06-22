@@ -59,7 +59,7 @@ func (app *App) prepareRunParameters(args []string) (*config.Config, *RunParamet
 }
 
 // executeScenario runs the scenario and generates reports.
-func (app *App) executeScenario(r *runner.Runner, cfg *config.Config, params *RunParameters) (int, error) {
+func (app *App) executeScenario(r runner.Interface, cfg *config.Config, params *RunParameters) (int, error) {
 	_, _ = fmt.Printf("Running scenario '%s' in environment '%s'...\n", params.Scenario, params.Environment)
 
 	// Run the scenario
@@ -97,5 +97,72 @@ func (app *App) executeScenario(r *runner.Runner, cfg *config.Config, params *Ru
 		_, _ = fmt.Printf("Report saved to: %s\n", report.FilePath)
 	}
 
+	// Push metrics to Prometheus Pushgateway if configured
+	if cfg.Report.Pushgateway.URL != "" {
+		app.pushMetricsToGateway(cfg, reporter, result.OutputFile, params.Environment, params.Scenario)
+	}
+
 	return exitCode, nil
+}
+
+// pushMetricsToGateway extracts metrics and pushes them to Prometheus Pushgateway
+func (app *App) pushMetricsToGateway(cfg *config.Config, reporter *report.Reporter, resultFile, environment, scenario string) {
+	metrics, metricsErr := reporter.ExtractMetrics(resultFile)
+	if metricsErr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to extract metrics for Pushgateway: %v\n", metricsErr)
+		return
+	}
+
+	// Create job name in format galick_<environment>_<scenario>
+	jobName := fmt.Sprintf("galick_%s_%s", environment, scenario)
+
+	// Extract Prometheus-formatted metrics
+	promMetrics := report.ExtractPrometheusMetrics(metrics)
+
+	// Push metrics to Prometheus
+	pushErr := report.PushMetrics(
+		cfg.Report.Pushgateway.URL,
+		jobName,
+		cfg.Report.Pushgateway.Labels,
+		promMetrics,
+	)
+
+	if pushErr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to push metrics to Pushgateway: %v\n", pushErr)
+	} else {
+		_, _ = fmt.Printf("Metrics pushed to Pushgateway: %s\n", cfg.Report.Pushgateway.URL)
+	}
+}
+
+// configurePushgateway sets up the Pushgateway configuration from command line arguments and environment variables.
+func (app *App) configurePushgateway(cfg *config.Config, pushgatewayURL, pushLabels string) {
+	// Override Pushgateway URL from command line if provided
+	if pushgatewayURL != "" {
+		if cfg.Report.Pushgateway.URL == "" {
+			cfg.Report.Pushgateway = config.Pushgateway{
+				URL:    pushgatewayURL,
+				Labels: make(map[string]string),
+			}
+		} else {
+			cfg.Report.Pushgateway.URL = pushgatewayURL
+		}
+	}
+
+	// Override with environment variable if set
+	if envURL := os.Getenv("GALICK_PUSHGATEWAY_URL"); envURL != "" && cfg.Report.Pushgateway.URL == "" {
+		cfg.Report.Pushgateway.URL = envURL
+	}
+
+	// Parse additional labels if provided
+	if pushLabels != "" {
+		labels := parsePushLabels(pushLabels)
+		if cfg.Report.Pushgateway.Labels == nil {
+			cfg.Report.Pushgateway.Labels = labels
+		} else {
+			// Merge labels, command-line takes precedence
+			for k, v := range labels {
+				cfg.Report.Pushgateway.Labels[k] = v
+			}
+		}
+	}
 }

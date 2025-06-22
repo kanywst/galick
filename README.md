@@ -13,6 +13,7 @@ Galick is a versatile HTTP load‑testing wrapper around [Vegeta](https://github
 * **Pre/Post Hooks**: Run scripts before and after tests
 * **Reusable Templates**: Share scenarios across projects
 * **Environment Variables**: Override any setting with `GALICK_*`
+* **Prometheus Integration**: Push metrics to Pushgateway for monitoring and alerting
 
 ## Install
 
@@ -120,6 +121,10 @@ report:
   thresholds:
     p95: 200ms
     success_rate: 99.0
+  pushgateway:
+    url: "" # Prometheus Pushgateway URL (e.g., http://pushgateway:9091)
+    labels:  # Additional labels for metrics
+      instance: galick
 
 hooks:
   pre: ./scripts/pre-load.sh
@@ -152,6 +157,8 @@ Flags:
 * `--output-dir, -o`: Output directory (overrides configuration default)
 * `--config`: Path to config file (default is ./loadtest.yaml)
 * `--ci`: Enable CI mode (exit with non-zero code on threshold violations)
+* `--pushgateway-url`: URL of Prometheus Pushgateway to push metrics to
+* `--push-labels`: Additional labels for Prometheus metrics (format: key1=value1,key2=value2)
 
 ### `galick report`
 
@@ -228,12 +235,18 @@ galick run heavy --output-dir output/machine2
 # Aggregate results (manual step)
 ```
 
+## Prometheus Integration
+
+Galick can push load test metrics to Prometheus Pushgateway for monitoring and alerting.
+
+See [Prometheus Integration Documentation](docs/prometheus-integration.md) for details.
+
 ## Development
 
 ### Requirements
 
-- Go 1.24 or higher
-- Vegeta v12.12.0 or higher
+* Go 1.24 or higher
+* Vegeta v12.12.0 or higher
 
 ### Setup Development Environment
 

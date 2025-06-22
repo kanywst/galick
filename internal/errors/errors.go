@@ -53,6 +53,10 @@ var (
 	ErrEnvironmentBaseURLEmpty = errors.New("environment base URL is empty")
 	ErrInvalidTargetFormat     = errors.New("invalid target format")
 	ErrInvalidHTTPMethod       = errors.New("invalid HTTP method")
+
+	// Pushgateway errors
+	ErrPushgatewayURLEmpty = errors.New("pushgateway URL cannot be empty")
+	ErrJobNameEmpty        = errors.New("job name cannot be empty")
 )
 
 // WithConfigNotFoundDetails adds details to the config not found error.

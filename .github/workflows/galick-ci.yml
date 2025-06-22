@@ -167,6 +167,12 @@ jobs:
             ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} \
             -c "cd /data/output/dev/simple && vegeta report -type=json < results.bin > vegeta_report.json && cat vegeta_report.json"
 
+          # Generate markdown report using galick's functionality
+          echo "Generating markdown report..."
+          docker run --rm --network host \
+            -v $(pwd)/output:/data/output \
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} report --type markdown --results /data/output/dev/simple/results.bin --dir /data/output/dev/simple --config /data/loadtest.yaml
+
           # Try generating HTML with fallback
           echo "Copying results for HTML generation..."
           mkdir -p output/html

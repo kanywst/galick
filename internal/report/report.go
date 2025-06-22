@@ -210,7 +210,8 @@ func (r *Reporter) enhanceMarkdownReport(
 	}
 
 	// Write the markdown report
-	if err := os.WriteFile(result.FilePath, []byte(mdReport), constants.FilePermissionPrivate); err != nil {
+	// Use constants.FilePermissionDefault for artifact upload compatibility
+	if err := os.WriteFile(result.FilePath, []byte(mdReport), constants.FilePermissionDefault); err != nil {
 		return fmt.Errorf("failed to write markdown report: %w", err)
 	}
 
@@ -231,29 +232,80 @@ func (r *Reporter) enhanceHTMLReport(
 	}
 
 	// Write the HTML report
-	if err := os.WriteFile(result.FilePath, []byte(htmlReport), constants.FilePermissionPrivate); err != nil {
+	// Use constants.FilePermissionDefault for artifact upload compatibility
+	if err := os.WriteFile(result.FilePath, []byte(htmlReport), constants.FilePermissionDefault); err != nil {
 		return fmt.Errorf("failed to write HTML report: %w", err)
 	}
 
 	return nil
 }
 
-// GenerateReport generates a report in the specified format
+// GenerateReport generates a single report in the specified format.
 func (r *Reporter) GenerateReport(resultFile, outputFile, format string, metrics *Metrics) error {
-	// Generate report data based on format
-	outputData, err := r.generateReportData(resultFile, format, metrics)
-	if err != nil {
-		return err
+	// Handle Markdown format
+	if format == FormatMarkdown {
+		return r.generateMarkdownReportInternal(resultFile, outputFile, metrics)
 	}
+	// Handle HTML format
+	if format == FormatHTML {
+		return r.generateHTMLReportInternal(resultFile, outputFile, metrics)
+	}
+	// For other formats, use vegeta command
+	vegeta := "vegeta"
+	args := []string{"report", "--type=" + format, "--output", outputFile, resultFile}
 
-	// Write the report to file
-	if err := os.WriteFile(outputFile, outputData, constants.FilePermissionDefault); err != nil {
-		return fmt.Errorf("failed to write report file: %w", err)
+	// Execute the command
+	output, err := r.execCommand(vegeta, args...)
+	if err != nil {
+		return fmt.Errorf("vegeta report command failed: %w: %s", err, string(output))
 	}
 
 	return nil
 }
 
+// generateMarkdownReportInternal handles Markdown report generation logic.
+func (r *Reporter) generateMarkdownReportInternal(resultFile, outputFile string, metrics *Metrics) error {
+	if metrics == nil {
+		var err error
+		metrics, err = r.extractMetrics(resultFile)
+		if err != nil {
+			return fmt.Errorf("failed to extract metrics for markdown report: %w", err)
+		}
+	}
+	mdReport, err := r.GenerateMarkdownReport("", "", metrics, nil)
+	if err != nil {
+		return fmt.Errorf("failed to generate markdown report: %w", err)
+	}
+	// Use constants.FilePermissionDefault for artifact upload compatibility
+	if err := os.WriteFile(outputFile, []byte(mdReport), constants.FilePermissionDefault); err != nil {
+		return fmt.Errorf("failed to write markdown report: %w", err)
+	}
+	return nil
+}
+
+// generateHTMLReportInternal handles HTML report generation logic.
+func (r *Reporter) generateHTMLReportInternal(resultFile, outputFile string, metrics *Metrics) error {
+	if metrics == nil {
+		var err error
+		metrics, err = r.extractMetrics(resultFile)
+		if err != nil {
+			return fmt.Errorf("failed to extract metrics for html report: %w", err)
+		}
+	}
+	htmlReport, err := r.GenerateHTMLReport("", "", metrics, nil)
+	if err != nil {
+		return fmt.Errorf("failed to generate html report: %w", err)
+	}
+	// Use constants.FilePermissionDefault for artifact upload compatibility
+	if err := os.WriteFile(outputFile, []byte(htmlReport), constants.FilePermissionDefault); err != nil {
+		return fmt.Errorf("failed to write html report: %w", err)
+	}
+	return nil
+}
+
+// TODO: (currently unused but preserved for future use)
+/*/
+/
 // generateReportData creates the raw report data based on the specified format
 func (r *Reporter) generateReportData(resultFile, format string, metrics *Metrics) ([]byte, error) {
 	// Handle rich formats (markdown and HTML)
@@ -285,7 +337,7 @@ func (r *Reporter) generateVegetaReport(resultFile, format string) ([]byte, erro
 
 	// Add format flag for non-text formats
 	if format != FormatText {
-		args = append(args, "-type="+format)
+		args = append(args, "--type="+format)
 	}
 
 	// Add input file
@@ -299,6 +351,7 @@ func (r *Reporter) generateVegetaReport(resultFile, format string) ([]byte, erro
 
 	return outputData, nil
 }
+*/
 
 // CheckThresholds validates metrics against configured thresholds.
 func (r *Reporter) CheckThresholds(metrics *Metrics, thresholds map[string]string) (bool, error) {
@@ -583,13 +636,17 @@ func (r *Reporter) renderMarkdownTemplate(mdTemplate string, data interface{}) (
 
 // extractMetrics extracts metrics from a Vegeta result file
 func (r *Reporter) extractMetrics(resultFile string) (*Metrics, error) {
-	// Run vegeta report with JSON output
-	output, err := r.execCommand("vegeta", "report", "-type=json", resultFile)
+	// Create the command for extracting metrics
+	vegeta := "vegeta"
+	args := []string{"report", "--type=json", resultFile}
+
+	// Execute the command
+	output, err := r.execCommand(vegeta, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract metrics: %w", err)
+		return nil, fmt.Errorf("vegeta report command failed: %w: %s", err, string(output))
 	}
 
-	// Parse the JSON
+	// Parse the JSON output
 	var metrics Metrics
 	if err := json.Unmarshal(output, &metrics); err != nil {
 		return nil, fmt.Errorf("failed to parse metrics JSON: %w", err)
@@ -598,7 +655,8 @@ func (r *Reporter) extractMetrics(resultFile string) (*Metrics, error) {
 	return &metrics, nil
 }
 
-// ExtractMetrics extracts metrics from a Vegeta result file (public version)
+// ExtractMetrics extracts metrics from a Vegeta result file.
+// This is used for both threshold validation and Prometheus metrics.
 func (r *Reporter) ExtractMetrics(resultFile string) (*Metrics, error) {
 	return r.extractMetrics(resultFile)
 }

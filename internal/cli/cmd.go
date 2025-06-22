@@ -194,6 +194,10 @@ report:
   thresholds:
     p95: 200ms
     success_rate: 99.0
+  pushgateway:
+    url: "" # Prometheus Pushgateway URL (e.g., http://pushgateway:9091)
+    labels:  # Additional labels for metrics
+      instance: galick
 
 hooks:
   pre: ./scripts/pre-load.sh
@@ -212,6 +216,11 @@ hooks:
 
 // newRunCmd creates the run command.
 func (app *App) newRunCmd() *cobra.Command {
+	var (
+		pushgatewayURL string
+		pushLabels     string
+	)
+
 	cmd := &cobra.Command{
 		Use:   "run [scenario]",
 		Short: "Run a load test scenario",
@@ -223,6 +232,9 @@ func (app *App) newRunCmd() *cobra.Command {
 				_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
 				os.Exit(1)
 			}
+
+			// Configure Pushgateway settings
+			app.configurePushgateway(cfg, pushgatewayURL, pushLabels)
 
 			// Create runner
 			r := runner.NewRunner()
@@ -253,6 +265,9 @@ func (app *App) newRunCmd() *cobra.Command {
 			}
 		},
 	}
+
+	cmd.Flags().StringVar(&pushgatewayURL, "pushgateway-url", "", "URL of the Prometheus Pushgateway (env: GALICK_PUSHGATEWAY_URL)")
+	cmd.Flags().StringVar(&pushLabels, "push-labels", "", "Additional labels for Prometheus metrics (format: key1=value1,key2=value2)")
 
 	return cmd
 }
