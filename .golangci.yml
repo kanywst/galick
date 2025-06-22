@@ -1,16 +1,20 @@
-# ここでバージョンを指定
-version: 2
+version: "2"
 
-# 実行に関する設定
 run:
   timeout: 10m
   issues-exit-code: 1
   tests: true
-  # スクリプトディレクトリを除外
-  skip-dirs:
-    - scripts
 
-# 有効にするlinter
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    paths:
+      - "^scripts/"
+      - ".*_test\\.go$"
+
+# Linter 全体設定
 linters:
   enable:
     - cyclop
@@ -25,8 +29,6 @@ linters:
     - goconst
     - gocyclo
     - err113
-    - gofmt
-    - goimports
     - mnd
     - goprintffuncname
     - gosec
@@ -42,36 +44,22 @@ linters:
     - unconvert
     - unparam
     - whitespace
+    - errcheck
 
-# linterの設定
-linters-settings:
-  funlen:
-    lines: 100
-    statements: 50
-  mnd:
-    # デフォルトで許可する値のリスト
-    allowed-numbers:
-      - 0
-      - 1
-      - 2
-      - 100 # 100%など
-    # デフォルトの除外設定
-    ignored-numbers:
-      - "0666" # ファイルパーミッション
-      - "0755" # ディレクトリパーミッション
-      - "0644" # 一般的なファイルパーミッション
-    # チェックしない関数
-    ignored-functions:
-      - time.Date
-      - time.Sleep
+  exclusions:
+    paths:
+      - "^scripts/"
+      - ".*_test\\.go$"
 
-# 問題検出の設定
-issues:
-  # テストファイルに対する特定のlinterを除外
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gochecknoglobals
-        - gosec
-        - funlen
-        - noctx
+  settings:
+    funlen:
+      lines: 100
+      statements: 50
+    mnd:
+      ignored-numbers:
+        - "0666"
+        - "0755"
+        - "0644"
+      ignored-functions:
+        - time.Date
+        - time.Sleep

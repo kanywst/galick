@@ -38,7 +38,9 @@ func TestInitCommand(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Save the current working directory
 	cwd, err := os.Getwd()
@@ -73,7 +75,9 @@ func TestInitCommand(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to write to pipe: %v", err)
 	}
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Errorf("Failed to close pipe: %v", err)
+	}
 	defer func() { os.Stdin = oldStdin }()
 
 	// Set args to simulate init command

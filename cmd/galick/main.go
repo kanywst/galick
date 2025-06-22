@@ -1,3 +1,4 @@
+// Package main provides the entry point for the Galick load testing tool.
 package main
 
 import "github.com/kanywst/galick/internal/cli"

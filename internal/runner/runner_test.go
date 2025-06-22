@@ -33,7 +33,9 @@ func TestBuildVegetaCommand(t *testing.T) {
 	// Create a temporary directory for test output
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	outputPath := filepath.Join(tempDir, "output.bin")
 
@@ -41,7 +43,9 @@ func TestBuildVegetaCommand(t *testing.T) {
 	runner := NewRunner()
 	cmd, targetsFile, err := runner.buildVegetaCommand(scenario, environment, outputPath)
 	assert.NoError(t, err)
-	defer os.Remove(targetsFile)
+	defer func() {
+		_ = os.Remove(targetsFile) // エラーは無視
+	}()
 
 	// Verify command arguments
 	assert.Contains(t, cmd.Args, "attack")
@@ -50,6 +54,10 @@ func TestBuildVegetaCommand(t *testing.T) {
 	assert.Contains(t, cmd.Args, "-output="+outputPath)
 
 	// Verify targets file content
+	// ファイルパスの検証（安全性確認）
+	if !filepath.IsAbs(targetsFile) {
+		t.Fatalf("Expected absolute path, got: %s", targetsFile)
+	}
 	content, err := os.ReadFile(targetsFile)
 	assert.NoError(t, err)
 
@@ -90,7 +98,9 @@ func TestRunScenario(t *testing.T) {
 	// Create a temporary directory for test output
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Create a mock runner that doesn't actually execute commands
 	mockRunner := &Runner{
@@ -117,7 +127,9 @@ func TestRunPreHook(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Create a test script
 	scriptContent := `#!/bin/sh
@@ -125,7 +137,7 @@ echo "Pre-hook executed"
 exit 0
 `
 	scriptPath := filepath.Join(tempDir, "pre-hook.sh")
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), constants.FilePermissionPrivate)
 	assert.NoError(t, err)
 
 	// Create a mock config with hooks
@@ -153,7 +165,9 @@ func TestRunPostHook(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Create a test script
 	scriptContent := `#!/bin/sh
@@ -161,7 +175,7 @@ echo "Post-hook executed with exit code: $1"
 exit 0
 `
 	scriptPath := filepath.Join(tempDir, "post-hook.sh")
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), constants.FilePermissionPrivate)
 	assert.NoError(t, err)
 
 	// Create a mock config with hooks

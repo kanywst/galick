@@ -14,7 +14,9 @@ func TestLoadConfig(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Create a test YAML file
 	yamlContent := `
@@ -105,7 +107,9 @@ func TestDefaultConfigFile(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Save the current working directory and change to the temp dir
 	cwd, err := os.Getwd()
@@ -149,7 +153,7 @@ scenarios:
 	assert.Equal(t, "dev", cfg.Default.Environment)
 
 	// Clean up
-	os.Remove("loadtest.yaml")
+	_ = os.Remove("loadtest.yaml")
 
 	// Test with loadtest.yml
 	err = os.WriteFile("loadtest.yml", []byte(minimalYaml), constants.FilePermissionDefault)

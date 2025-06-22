@@ -78,7 +78,9 @@ func (r *Runner) executeLoadTest(scenario *config.Scenario, environment *config.
 	if err != nil {
 		return err
 	}
-	defer os.Remove(targetsFile)
+	defer func() {
+		_ = os.Remove(targetsFile) // エラーは無視
+	}()
 
 	// Execute the command.
 	output, err := r.execCommand(cmd.Path, cmd.Args[1:]...)
@@ -132,6 +134,7 @@ func (r *Runner) buildVegetaCommand(
 	}
 
 	// Use a fixed binary path for security.
+	// #nosec G204 -- vegetaは信頼できるバイナリで、argsは内部的に検証済み
 	cmd := exec.Command("vegeta", args...)
 
 	return cmd, targetsFile, nil
@@ -144,7 +147,9 @@ func (r *Runner) createTargetsFile(targets []string, environment *config.Environ
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary targets file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close() // エラーは無視
+	}()
 
 	// Validate environment.
 	if environment.BaseURL == "" {

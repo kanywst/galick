@@ -181,11 +181,12 @@ func (r *Reporter) enhanceRichReports(
 	thresholds map[string]string,
 ) error {
 	for _, result := range results {
-		if result.Format == FormatMarkdown {
+		switch result.Format {
+		case FormatMarkdown:
 			if err := r.enhanceMarkdownReport(result, scenario, environment, metrics, thresholds); err != nil {
 				return err
 			}
-		} else if result.Format == FormatHTML {
+		case FormatHTML:
 			if err := r.enhanceHTMLReport(result, scenario, environment, metrics, thresholds); err != nil {
 				return err
 			}

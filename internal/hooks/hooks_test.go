@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kanywst/galick/internal/config"
+	"github.com/kanywst/galick/internal/constants"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,7 +15,9 @@ func TestRunPreHook(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Create a test script
 	scriptContent := `#!/bin/sh
@@ -22,7 +25,7 @@ echo "Pre-hook executed"
 exit 0
 `
 	scriptPath := filepath.Join(tempDir, "pre-hook.sh")
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), constants.FilePermissionPrivate)
 	assert.NoError(t, err)
 
 	// Create a mock config with hooks
@@ -62,7 +65,9 @@ func TestRunPostHook(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Create a test script
 	scriptContent := `#!/bin/sh
@@ -70,7 +75,7 @@ echo "Post-hook executed with exit code: $1"
 exit 0
 `
 	scriptPath := filepath.Join(tempDir, "post-hook.sh")
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), constants.FilePermissionPrivate)
 	assert.NoError(t, err)
 
 	// Create a mock config with hooks

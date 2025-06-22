@@ -3,6 +3,7 @@ package report
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kanywst/galick/internal/config"
@@ -15,7 +16,9 @@ func TestGenerateReportFormats(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Create a mock result file (this would normally be output from Vegeta)
 	// This is a simplified binary version for testing
@@ -51,9 +54,10 @@ func TestGenerateReportFormats(t *testing.T) {
 
 			if args[0] == "report" {
 				if len(args) > 1 {
-					if args[1] == "-type=json" {
+					switch args[1] {
+					case "-type=json":
 						return []byte(`{"success":1.0,"latency":{"95th":0.15}}`), nil
-					} else if args[1] == "-type=html" {
+					case "-type=html":
 						return []byte("<html><body>Report</body></html>"), nil
 					}
 				}
@@ -68,6 +72,11 @@ func TestGenerateReportFormats(t *testing.T) {
 	jsonPath := filepath.Join(tempDir, "report.json")
 	err = mockReporter.GenerateReport(resultFilePath, jsonPath, "json", nil)
 	assert.NoError(t, err)
+
+	// ファイルパスの検証（安全性確認）
+	if !strings.HasPrefix(jsonPath, tempDir) {
+		t.Fatalf("Invalid file path: %s", jsonPath)
+	}
 	jsonContent, err := os.ReadFile(jsonPath)
 	assert.NoError(t, err)
 	assert.Contains(t, string(jsonContent), "success")
@@ -76,6 +85,11 @@ func TestGenerateReportFormats(t *testing.T) {
 	htmlPath := filepath.Join(tempDir, "report.html")
 	err = mockReporter.GenerateReport(resultFilePath, htmlPath, "html", nil)
 	assert.NoError(t, err)
+
+	// ファイルパスの検証（安全性確認）
+	if !strings.HasPrefix(htmlPath, tempDir) {
+		t.Fatalf("Invalid file path: %s", htmlPath)
+	}
 	htmlContent, err := os.ReadFile(htmlPath)
 	assert.NoError(t, err)
 	assert.Contains(t, string(htmlContent), "<html>")
@@ -87,9 +101,13 @@ func TestGenerateReportFormats(t *testing.T) {
 	mdReport, err := mockReporter.GenerateMarkdownReport("Test Scenario", "Test Env", mockMetrics, nil)
 	assert.NoError(t, err)
 
-	err = os.WriteFile(mdPath, []byte(mdReport), 0644)
+	err = os.WriteFile(mdPath, []byte(mdReport), constants.FilePermissionPrivate)
 	assert.NoError(t, err)
 
+	// ファイルパスの検証（安全性確認）
+	if !strings.HasPrefix(mdPath, tempDir) {
+		t.Fatalf("Invalid file path: %s", mdPath)
+	}
 	mdContent, err := os.ReadFile(mdPath)
 	assert.NoError(t, err)
 	assert.Contains(t, string(mdContent), "# Load Test Report")
@@ -216,11 +234,13 @@ func TestGenerateReports(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "galick-test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir) // エラーは無視
+	}()
 
 	// Create a mock result file
 	resultFilePath := filepath.Join(tempDir, "results.bin")
-	err = os.WriteFile(resultFilePath, []byte("mock-vegeta-data"), 0644)
+	err = os.WriteFile(resultFilePath, []byte("mock-vegeta-data"), constants.FilePermissionPrivate)
 	assert.NoError(t, err)
 
 	// Create a mock config
