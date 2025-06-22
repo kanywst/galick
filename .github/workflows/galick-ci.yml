@@ -52,11 +52,10 @@ jobs:
           go-version: ${{ needs.get-versions.outputs.go-version }}
           cache: true
 
-      - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: ${{ needs.get-versions.outputs.golangci-lint-version }}
-          args: --timeout=5m
+      - name: Install golangci-lint manually
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin ${{ needs.get-versions.outputs.golangci-lint-version }}
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Run golangci-lint
         run: golangci-lint run ./...
