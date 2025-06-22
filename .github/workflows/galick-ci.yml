@@ -76,50 +76,62 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Galick Docker Image
+        uses: docker/build-push-action@v4
         with:
-          go-version: ${{ needs.get-versions.outputs.go-version }}
+          context: .
+          push: false
+          load: true
+          tags: galick:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Install Vegeta
-        run: |
-          VEGETA_VERSION="${{ needs.get-versions.outputs.vegeta-version }}"
-          # バージョン先頭のvを削除
-          VEGETA_VERSION_CLEAN=${VEGETA_VERSION#v}
-          wget https://github.com/tsenart/vegeta/releases/download/${VEGETA_VERSION}/vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz
-          tar xzf vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz
-          sudo mv vegeta /usr/local/bin/
+      - name: Build Demo Server Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.demo
+          push: false
+          load: true
+          tags: demo-server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build Galick
+      - name: Verify Docker Images
         run: |
-          make build
-          sudo mv bin/galick /usr/local/bin/
+          docker images
+          docker run --rm galick:latest version
 
       - name: Start Demo Server
         if: github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
         run: |
-          go build -o demo-server ./scripts/demo-server.go
-          ./demo-server &
+          docker run -d --name demo-server -p 8080:8080 demo-server:latest
           sleep 2  # Wait for server to start
 
       - name: Run Load Tests (Manual Trigger)
         if: github.event_name == 'workflow_dispatch'
         run: |
-          CI=${{ inputs.threshold_failure }} galick run ${{ inputs.scenario }} --env ${{ inputs.environment }}
+          mkdir -p output
+          docker run --network host -v $(pwd)/output:/data/output -e CI=${{ inputs.threshold_failure }} galick:latest run ${{ inputs.scenario }} --env ${{ inputs.environment }}
 
       - name: Run Load Tests (Automated)
         if: github.event_name != 'workflow_dispatch'
         run: |
-          CI=true galick run
+          mkdir -p output
+          docker run --network host -v $(pwd)/output:/data/output -e CI=true galick:latest run
 
       - name: Generate HTML Report
         run: |
-          galick report --format html
+          docker run --network host -v $(pwd)/output:/data/output galick:latest report --format html
 
       - name: Stop Demo Server
         if: always() && github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
         run: |
-          pkill -f demo-server || true
+          docker stop demo-server || true
+          docker rm demo-server || true
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
