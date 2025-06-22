@@ -1,0 +1,18 @@
+FROM golang:1.23-alpine
+
+WORKDIR /app
+
+RUN apk --no-cache add git make bash
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# Build demo server using make target
+# Skip the automatic execution of server
+RUN make demo-server SKIP_RUN=true
+
+EXPOSE 8080
+
+CMD ["/app/demo-server"]

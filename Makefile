@@ -1,23 +1,24 @@
 # version information
-COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
-VERSION=$(shell git describe --tags --exact-match --always 2>/dev/null || echo "dev")
-DATE=$(shell date +'%FT%TZ')
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+VERSION ?= $(shell git describe --tags --exact-match --always 2>/dev/null || echo "dev")
+DATE ?= $(shell date +'%FT%TZ')
 
 # dependencies
 GO_VERSION=1.23
 VEGETA_VERSION=v12.12.0
 GOLANGCI_LINT_VERSION=v2.1.6
 
-.PHONY: build clean test lint setup-dev
+# Define phony targets
+.PHONY: build clean test lint setup-dev docker docker-demo docker-run docker-build
 
 # build target
 build:
 	@echo "Building Galick version $(VERSION) (commit: $(COMMIT), built: $(DATE))"
 	@mkdir -p bin
 	CGO_ENABLED=0 go build -v -a \
-	-ldflags '-s -w -X github.com/kanywst/galick/internal/cli.version=$(VERSION) \
+	-ldflags "-s -w -X github.com/kanywst/galick/internal/cli.version=$(VERSION) \
 	-X github.com/kanywst/galick/internal/cli.commit=$(COMMIT) \
-	-X github.com/kanywst/galick/internal/cli.buildDate=$(DATE)' \
+	-X github.com/kanywst/galick/internal/cli.buildDate=$(DATE)" \
 	-o bin/galick ./cmd/galick
 
 # run tests
@@ -45,7 +46,9 @@ install: build
 # build and run the demo server
 demo-server:
 	go build -o demo-server ./scripts/demo-server.go
+ifeq ($(SKIP_RUN),)
 	./demo-server
+endif
 
 # setup development environment
 setup-dev:
@@ -66,6 +69,16 @@ setup-dev:
 	fi
 	@echo "Development environment setup complete!"
 
+# Docker environment build target
+docker-build:
+	@echo "Building Galick for Docker"
+	@mkdir -p bin
+	CGO_ENABLED=0 go build -v -a \
+	-ldflags "-s -w -X github.com/kanywst/galick/internal/cli.version=docker \
+	-X github.com/kanywst/galick/internal/cli.commit=docker \
+	-X github.com/kanywst/galick/internal/cli.buildDate=$(shell date +"%FT%TZ")" \
+	-o bin/galick ./cmd/galick
+
 # HELP command
 help:
 	@echo "Galick Makefile Help"
@@ -77,6 +90,11 @@ help:
 	@echo "make install     - Install galick to GOPATH/bin"
 	@echo "make demo-server - Build and run the demo server"
 	@echo "make setup-dev   - Set up development environment"
+	@echo "make docker      - Build Docker image"
+	@echo "make docker-run  - Run tests with Docker Compose"
+	@echo "make setup-dev   - Set up development environment"
+	@echo "make docker      - Build Docker image"
+	@echo "make docker-run  - Run tests with Docker Compose"
 	@echo ""
 	@echo "Dependencies:"
 	@echo "  Go:            $(GO_VERSION)"

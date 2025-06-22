@@ -4,15 +4,16 @@
 echo "Running pre-load hook script..."
 echo "Setting up test environment..."
 
-# Create output directory if it doesn't exist
 mkdir -p output
 
-# Verify if server is running
-if curl -s http://localhost:8080/api/health > /dev/null; then
-    echo "Server is running and ready for load testing."
+# Get target host from environment variable or use default
+TARGET_HOST=${TARGET_HOST:-demo-server:8080}
+
+if curl -s http://${TARGET_HOST}/api/health > /dev/null; then
+    echo "Server is running and ready for load testing at ${TARGET_HOST}."
 else
-    echo "Warning: Server does not seem to be running on port 8080."
-    echo "Make sure to start the demo server with: ./scripts/run-demo.sh"
+    echo "Warning: Server does not seem to be running at ${TARGET_HOST}."
+    echo "Make sure the demo-server container is running properly."
     exit 1
 fi
 

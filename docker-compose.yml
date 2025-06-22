@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  demo-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+    ports:
+      - "8090:8080"
+
+  galick:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./output:/data/output
+      - ./loadtest.yaml:/data/loadtest.yaml
+      - ./scripts:/scripts
+    environment:
+      - CI=false
+    depends_on:
+      - demo-server
+    command: ["run", "simple", "--env", "dev", "--config", "/data/loadtest.yaml"]

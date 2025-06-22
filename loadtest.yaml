@@ -7,7 +7,7 @@ default:
 
 environments:
   dev:
-    base_url: http://localhost:8080
+    base_url: http://demo-server:8080
     headers:
       Content-Type: application/json
   staging:
@@ -39,5 +39,5 @@ report:
     success_rate: 99.0
 
 hooks:
-  pre: ./scripts/pre-load.sh
-  post: ./scripts/post-load.sh
+  pre: /scripts/pre-load.sh
+  post: /scripts/post-load.sh

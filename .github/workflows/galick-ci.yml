@@ -68,7 +68,6 @@ jobs:
         with:
           file: ./coverage.txt
           fail_ci_if_error: false
-
   load-test:
     name: Load Test
     needs: [get-versions, lint-and-test]
@@ -79,13 +78,24 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Set Docker Tags
+        id: docker-tag-loadtest
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "GALICK_TAG=galick:pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "DEMO_TAG=demo-server:pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "GALICK_TAG=galick:latest" >> $GITHUB_OUTPUT
+            echo "DEMO_TAG=demo-server:latest" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build Galick Docker Image
         uses: docker/build-push-action@v4
         with:
           context: .
           push: false
           load: true
-          tags: galick:latest
+          tags: ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -96,39 +106,53 @@ jobs:
           file: Dockerfile.demo
           push: false
           load: true
-          tags: demo-server:latest
+          tags: ${{ steps.docker-tag-loadtest.outputs.DEMO_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Verify Docker Images
         run: |
           docker images
-          docker run --rm galick:latest version
+          docker run --rm ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} version
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/*.sh
+          find . -name "*.sh" -exec chmod +x {} \;
+          # Verify scripts are executable
+          ls -la scripts/pre-load.sh
+          ls -la scripts/post-load.sh
 
       - name: Start Demo Server
-        if: github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
         run: |
-          docker run -d --name demo-server -p 8080:8080 demo-server:latest
-          sleep 2  # Wait for server to start
+          docker run -d --name demo-server -p 8080:8080 ${{ steps.docker-tag-loadtest.outputs.DEMO_TAG }}
+          sleep 5  # Wait for server to start
+          # Verify the server is running
+          curl -s http://localhost:8080/api/health || echo "Warning: Server health check failed"
 
       - name: Run Load Tests (Manual Trigger)
         if: github.event_name == 'workflow_dispatch'
         run: |
           mkdir -p output
-          docker run --network host -v $(pwd)/output:/data/output -e CI=${{ inputs.threshold_failure }} galick:latest run ${{ inputs.scenario }} --env ${{ inputs.environment }}
+          # Add demo-server to hosts file to make it resolve to localhost
+          echo "127.0.0.1 demo-server" | sudo tee -a /etc/hosts
+          # Run load tests with explicit host configuration
+          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml -e CI=${{ inputs.threshold_failure }} ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} run ${{ inputs.scenario }} --env ${{ inputs.environment }} --config /data/loadtest.yaml --host localhost:8080
 
       - name: Run Load Tests (Automated)
         if: github.event_name != 'workflow_dispatch'
         run: |
           mkdir -p output
-          docker run --network host -v $(pwd)/output:/data/output -e CI=true galick:latest run
+          # Add demo-server to hosts file to make it resolve to localhost
+          echo "127.0.0.1 demo-server" | sudo tee -a /etc/hosts
+          # Run load tests with explicit host configuration
+          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml -e CI=true ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} run --config /data/loadtest.yaml --host localhost:8080
 
       - name: Generate HTML Report
         run: |
-          docker run --network host -v $(pwd)/output:/data/output galick:latest report --format html
+          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} report --format html
 
       - name: Stop Demo Server
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
         run: |
           docker stop demo-server || true
           docker rm demo-server || true
