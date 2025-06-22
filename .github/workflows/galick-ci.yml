@@ -160,8 +160,11 @@ jobs:
           find output -name "results.bin" -type f | while read -r results_file; do
             dir_path=$(dirname "$results_file")
             echo "Generating report for $results_file..."
-            docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml \
-              ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} report --type html --results "/data/${results_file#output/}"
+            docker run --network host \
+              -v $(pwd)/output:/data/output \
+              -v $(pwd)/loadtest.yaml:/data/loadtest.yaml \
+              -e CONFIG_FILE=/data/loadtest.yaml \
+              ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} report --type html --results "/data/${results_file#output/}" --config /data/loadtest.yaml
           done
 
       - name: Stop Demo Server
