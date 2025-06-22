@@ -136,8 +136,11 @@ jobs:
           mkdir -p output
           # Add demo-server to hosts file to make it resolve to localhost
           echo "127.0.0.1 demo-server" | sudo tee -a /etc/hosts
-          # Run load tests with explicit host configuration
-          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml -e CI=${{ inputs.threshold_failure }} ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} run ${{ inputs.scenario }} --env ${{ inputs.environment }} --config /data/loadtest.yaml --host localhost:8080
+          # Run load tests with base_url via environment variable
+          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml \
+            -e CI=${{ inputs.threshold_failure }} \
+            -e BASE_URL=http://localhost:8080 \
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} run ${{ inputs.scenario }} --env ${{ inputs.environment }} --config /data/loadtest.yaml
 
       - name: Run Load Tests (Automated)
         if: github.event_name != 'workflow_dispatch'
@@ -145,8 +148,11 @@ jobs:
           mkdir -p output
           # Add demo-server to hosts file to make it resolve to localhost
           echo "127.0.0.1 demo-server" | sudo tee -a /etc/hosts
-          # Run load tests with explicit host configuration
-          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml -e CI=true ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} run --config /data/loadtest.yaml --host localhost:8080
+          # Run load tests with base_url via environment variable
+          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml \
+            -e CI=true \
+            -e BASE_URL=http://localhost:8080 \
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} run --config /data/loadtest.yaml
 
       - name: Generate HTML Report
         run: |
