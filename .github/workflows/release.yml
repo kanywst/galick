@@ -1,0 +1,128 @@
+name: Release Workflow
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  get-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      go-version: ${{ steps.extract.outputs.go-version }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Extract versions from Makefile
+        id: extract
+        run: |
+          echo "go-version=$(grep "GO_VERSION=" Makefile | cut -d= -f2)" >> $GITHUB_OUTPUT
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+  build:
+    needs: get-versions
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+        exclude:
+          - os: windows
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ needs.get-versions.outputs.go-version }}
+          cache: true
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          EXTENSION=""
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            EXTENSION=".exe"
+          fi
+          
+          OUTPUT_NAME="galick_${{ needs.get-versions.outputs.version }}_${{ matrix.os }}_${{ matrix.arch }}${EXTENSION}"
+          
+          echo "Building $OUTPUT_NAME..."
+          go build -ldflags "-X main.version=${{ needs.get-versions.outputs.version }}" -o "dist/${OUTPUT_NAME}" ./cmd/galick
+          
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            zip -j "dist/galick_${{ needs.get-versions.outputs.version }}_${{ matrix.os }}_${{ matrix.arch }}.zip" "dist/${OUTPUT_NAME}"
+          else
+            tar -czf "dist/galick_${{ needs.get-versions.outputs.version }}_${{ matrix.os }}_${{ matrix.arch }}.tar.gz" -C dist "${OUTPUT_NAME}"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: galick_${{ needs.get-versions.outputs.version }}_${{ matrix.os }}_${{ matrix.arch }}
+          path: dist/
+
+  create-release:
+    needs: [get-versions, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          
+      - name: List artifacts
+        run: find artifacts -type f
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          name: Release ${{ needs.get-versions.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          
+  docker-build-push:
+    needs: [get-versions, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v3
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ needs.get-versions.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
