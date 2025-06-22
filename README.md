@@ -16,6 +16,21 @@ Galick is a versatile HTTP load‑testing wrapper around [Vegeta](https://github
 
 ## Install
 
+### Using Docker
+
+You can use Galick with Docker:
+
+```bash
+# Build the Docker image
+docker build -t galick:latest .
+
+# Run load tests using Docker
+docker run -v $(pwd)/output:/data/output galick:latest run
+
+# Run with Docker Compose (includes demo server)
+docker-compose up
+```
+
 ### Pre‑compiled Binaries
 
 Download the latest release for your platform from the [releases page](https://github.com/kanywst/galick/releases).

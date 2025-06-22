@@ -68,7 +68,6 @@ jobs:
         with:
           file: ./coverage.txt
           fail_ci_if_error: false
-
   load-test:
     name: Load Test
     needs: [get-versions, lint-and-test]
@@ -76,50 +75,112 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Set Docker Tags
+        id: docker-tag-loadtest
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "GALICK_TAG=galick:pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "DEMO_TAG=demo-server:pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "GALICK_TAG=galick:latest" >> $GITHUB_OUTPUT
+            echo "DEMO_TAG=demo-server:latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Galick Docker Image
+        uses: docker/build-push-action@v4
         with:
-          go-version: ${{ needs.get-versions.outputs.go-version }}
+          context: .
+          push: false
+          load: true
+          tags: ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Install Vegeta
-        run: |
-          VEGETA_VERSION="${{ needs.get-versions.outputs.vegeta-version }}"
-          # バージョン先頭のvを削除
-          VEGETA_VERSION_CLEAN=${VEGETA_VERSION#v}
-          wget https://github.com/tsenart/vegeta/releases/download/${VEGETA_VERSION}/vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz
-          tar xzf vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz
-          sudo mv vegeta /usr/local/bin/
+      - name: Build Demo Server Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.demo
+          push: false
+          load: true
+          tags: ${{ steps.docker-tag-loadtest.outputs.DEMO_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build Galick
+      - name: Verify Docker Images
         run: |
-          make build
-          sudo mv bin/galick /usr/local/bin/
+          docker images
+          docker run --rm ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} version
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/*.sh
+          find . -name "*.sh" -exec chmod +x {} \;
+          # Verify scripts are executable
+          ls -la scripts/pre-load.sh
+          ls -la scripts/post-load.sh
 
       - name: Start Demo Server
-        if: github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
         run: |
-          go build -o demo-server ./scripts/demo-server.go
-          ./demo-server &
-          sleep 2  # Wait for server to start
+          docker run -d --name demo-server -p 8080:8080 ${{ steps.docker-tag-loadtest.outputs.DEMO_TAG }}
+          sleep 5  # Wait for server to start
+          # Verify the server is running
+          curl -s http://localhost:8080/api/health || echo "Warning: Server health check failed"
 
       - name: Run Load Tests (Manual Trigger)
         if: github.event_name == 'workflow_dispatch'
         run: |
-          CI=${{ inputs.threshold_failure }} galick run ${{ inputs.scenario }} --env ${{ inputs.environment }}
+          mkdir -p output
+          # Add demo-server to hosts file to make it resolve to localhost
+          echo "127.0.0.1 demo-server" | sudo tee -a /etc/hosts
+          # Run load tests with base_url via environment variable
+          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml \
+            -e CI=${{ inputs.threshold_failure }} \
+            -e BASE_URL=http://localhost:8080 \
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} run ${{ inputs.scenario }} --env ${{ inputs.environment }} --config /data/loadtest.yaml
 
       - name: Run Load Tests (Automated)
         if: github.event_name != 'workflow_dispatch'
         run: |
-          CI=true galick run
+          mkdir -p output
+          # Add demo-server to hosts file to make it resolve to localhost
+          echo "127.0.0.1 demo-server" | sudo tee -a /etc/hosts
+          # Run load tests with base_url via environment variable
+          docker run --network host -v $(pwd)/output:/data/output -v $(pwd)/loadtest.yaml:/data/loadtest.yaml \
+            -e CI=true \
+            -e BASE_URL=http://localhost:8080 \
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} run --config /data/loadtest.yaml
 
-      - name: Generate HTML Report
+      - name: Generate Reports Directly
         run: |
-          galick report --format html
+          # Debug: List output directory contents
+          echo "Output directory contents:"
+          find output -type f -exec ls -lh {} \;
+
+          # Try direct vegeta processing
+          echo "Generating reports with vegeta directly..."
+          docker run --rm --network host --entrypoint sh \
+            -v $(pwd)/output:/data/output \
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} \
+            -c "cd /data/output/dev/simple && vegeta report -type=json < results.bin > vegeta_report.json && cat vegeta_report.json"
+
+          # Try generating HTML with fallback
+          echo "Copying results for HTML generation..."
+          mkdir -p output/html
+          cp output/dev/simple/results.bin output/html/
+
+          echo "Generating HTML report with simplified options..."
+          docker run --rm --network host \
+            -v $(pwd)/output:/data/output \
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} report --type html --results /data/output/html/results.bin --dir /data/output/html --config /data/loadtest.yaml
 
       - name: Stop Demo Server
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'
         run: |
-          pkill -f demo-server || true
+          docker stop demo-server || true
+          docker rm demo-server || true
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
