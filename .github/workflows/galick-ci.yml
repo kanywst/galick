@@ -162,9 +162,10 @@ jobs:
 
           # Try direct vegeta processing
           echo "Generating reports with vegeta directly..."
-          docker run --rm --network host \
+          docker run --rm --network host --entrypoint sh \
             -v $(pwd)/output:/data/output \
-            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} sh -c "cd /data/output/dev/simple && cat results.bin | vegeta report -type=json > vegeta_report.json && cat vegeta_report.json"
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} \
+            -c "cd /data/output/dev/simple && vegeta report -type=json < results.bin > vegeta_report.json && cat vegeta_report.json"
 
           # Try generating HTML with fallback
           echo "Copying results for HTML generation..."
