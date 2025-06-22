@@ -28,6 +28,10 @@ exit 0
 	err = os.WriteFile(scriptPath, []byte(scriptContent), constants.FilePermissionPrivate)
 	assert.NoError(t, err)
 
+	// add execute permission to the script
+	err = os.Chmod(scriptPath, 0700)
+	assert.NoError(t, err)
+
 	// Create a mock config with hooks
 	cfg := &config.Config{
 		Hooks: config.Hooks{
@@ -76,6 +80,10 @@ exit 0
 `
 	scriptPath := filepath.Join(tempDir, "post-hook.sh")
 	err = os.WriteFile(scriptPath, []byte(scriptContent), constants.FilePermissionPrivate)
+	assert.NoError(t, err)
+
+	// add execute permission to the script
+	err = os.Chmod(scriptPath, 0700)
 	assert.NoError(t, err)
 
 	// Create a mock config with hooks
