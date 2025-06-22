@@ -175,7 +175,7 @@ jobs:
           echo "Generating HTML report with simplified options..."
           docker run --rm --network host \
             -v $(pwd)/output:/data/output \
-            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} report --type html --results /data/output/html/results.bin --dir /data/output/html
+            ${{ steps.docker-tag-loadtest.outputs.GALICK_TAG }} report --type html --results /data/output/html/results.bin --dir /data/output/html --config /data/loadtest.yaml
 
       - name: Stop Demo Server
         run: |
