@@ -1,0 +1,61 @@
+# Basic load test configuration
+# Execute load test as a single Job
+
+# Resource configuration
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Galick configuration
+galick:
+  # Job configuration
+  job:
+    enabled: true
+    restartPolicy: Never
+    ttlSecondsAfterFinished: 3600  # Delete after 1 hour
+
+  # Persistence configuration
+  persistence:
+    enabled: true
+    size: 2Gi
+
+  # Test configuration
+  config:
+    default:
+      environment: "dev"
+      scenario: "simple"
+      output_dir: "/data/output"
+
+    environments:
+      dev:
+        base_url: "https://httpbin.org"
+        headers:
+          Content-Type: "application/json"
+          User-Agent: "Galick-LoadTest/1.0"
+
+    scenarios:
+      simple:
+        rate: "5/s"
+        duration: "1m"
+        targets:
+          - "GET /get"
+          - "GET /status/200"
+          - "POST /post"
+
+    report:
+      formats:
+        - "json"
+        - "html"
+        - "markdown"
+      thresholds:
+        p95: "500ms"
+        success_rate: 95.0
+
+  # Environment variables
+  env:
+    - name: GALICK_DEFAULT_ENVIRONMENT
+      value: "dev"

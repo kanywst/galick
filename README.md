@@ -16,6 +16,25 @@ Galick is a versatile HTTP load‑testing wrapper around [Vegeta](https://github
 
 ## Install
 
+### Using Kubernetes (Helm Chart)
+
+The easiest way to run Galick on Kubernetes:
+
+```bash
+# Quick demo test with built-in demo server
+helm install demo-test ./helm-chart/galick \
+  --set galick.demoServer.enabled=true
+
+# Monitor test execution
+kubectl logs -l app.kubernetes.io/name=galick -f
+
+# Check test results
+kubectl exec -it $(kubectl get pods -l app.kubernetes.io/name=galick -o jsonpath="{.items[0].metadata.name}") \
+  -- ls -la /data/output
+```
+
+For detailed Kubernetes deployment options, see [Helm Chart Usage Guide](docs/helm-chart-usage.md) and [Quick Start Guide](docs/quickstart.md).
+
 ### Using Docker
 
 You can use Galick with Docker:

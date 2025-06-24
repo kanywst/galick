@@ -1,0 +1,71 @@
+# Scheduled load test configuration
+# Execute load test periodically as CronJob
+
+galick:
+  # Job configuration (disabled)
+  job:
+    enabled: false
+
+  # CronJob configuration
+  cronjob:
+    enabled: true
+    schedule: "0 */4 * * *"  # Execute every 4 hours
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 5
+    failedJobsHistoryLimit: 3
+
+  # Persistence configuration
+  persistence:
+    enabled: true
+    size: 5Gi
+
+  # Test configuration
+  config:
+    default:
+      environment: "monitoring"
+      scenario: "health-check"
+      output_dir: "/data/output"
+
+    environments:
+      monitoring:
+        base_url: "https://api.example.com"
+        headers:
+          Content-Type: "application/json"
+          Authorization: "Bearer YOUR_API_TOKEN"
+
+    scenarios:
+      health-check:
+        rate: "2/s"
+        duration: "5m"
+        targets:
+          - "GET /health"
+          - "GET /api/v1/status"
+
+      light-load:
+        rate: "10/s"
+        duration: "2m"
+        targets:
+          - "GET /api/v1/products"
+          - "GET /api/v1/users"
+
+    report:
+      formats:
+        - "json"
+        - "markdown"
+      thresholds:
+        p95: "300ms"
+        success_rate: 99.0
+
+  # Environment variables
+  env:
+    - name: GALICK_DEFAULT_SCENARIO
+      value: "health-check"
+
+# Resource configuration
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
