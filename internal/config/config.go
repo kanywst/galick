@@ -41,8 +41,15 @@ type Scenario struct {
 
 // Report configuration.
 type Report struct {
-	Formats    []string          `mapstructure:"formats"`
-	Thresholds map[string]string `mapstructure:"thresholds"`
+	Formats     []string          `mapstructure:"formats"`
+	Thresholds  map[string]string `mapstructure:"thresholds"`
+	Pushgateway Pushgateway       `mapstructure:"pushgateway"`
+}
+
+// Pushgateway configuration.
+type Pushgateway struct {
+	URL    string            `mapstructure:"url"`
+	Labels map[string]string `mapstructure:"labels"`
 }
 
 // Hooks configuration.
