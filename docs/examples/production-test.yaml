@@ -1,0 +1,133 @@
+# Production environment configuration
+# Configuration focused on security and performance
+
+# Image configuration
+image:
+  repository: your-registry.com/galick
+  tag: "v1.0.0"
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: registry-secret
+
+# ServiceAccount configuration
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/galick-role
+
+galick:
+  # Job configuration
+  job:
+    enabled: true
+    restartPolicy: Never
+    ttlSecondsAfterFinished: 86400  # Delete after 24 hours
+    backoffLimit: 2
+
+  # Persistence configuration
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: "fast-ssd"
+    annotations:
+      volume.beta.kubernetes.io/storage-class: "fast-ssd"
+
+  config:
+    default:
+      environment: "production"
+      scenario: "performance"
+      output_dir: "/data/output"
+
+    environments:
+      production:
+        base_url: "https://api.production.com"
+        headers:
+          Content-Type: "application/json"
+          Authorization: "Bearer ${PROD_API_TOKEN}"
+          X-Request-ID: "${POD_NAME}-${RANDOM_UUID}"
+
+    scenarios:
+      performance:
+        rate: "50/s"
+        duration: "15m"
+        targets:
+          - "GET /api/v1/health"
+          - "GET /api/v1/products?limit=100"
+          - "GET /api/v1/users?page=1"
+          - "POST /api/v1/analytics/events"
+
+      capacity:
+        rate: "100/s"
+        duration: "5m"
+        targets:
+          - "GET /api/v1/products"
+
+    report:
+      formats:
+        - "json"
+        - "html"
+        - "markdown"
+      thresholds:
+        p50: "100ms"
+        p95: "500ms"
+        p99: "1000ms"
+        success_rate: 99.5
+
+  env:
+    - name: PROD_API_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: galick-secrets
+          key: api-token
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
+nodeSelector:
+  environment: "production"
+  node-type: "compute-optimized"
+
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "load-testing"
+    effect: "NoSchedule"
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+          - amd64
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+          - c5.xlarge
+          - c5.2xlarge

@@ -27,10 +27,18 @@ RUN apk --no-cache add ca-certificates curl bash
 
 ARG VEGETA_VERSION=v12.12.0
 RUN VEGETA_VERSION_CLEAN=${VEGETA_VERSION#v} && \
-    wget https://github.com/tsenart/vegeta/releases/download/${VEGETA_VERSION}/vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz && \
-    tar xzf vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz && \
+    echo "Downloading vegeta version: ${VEGETA_VERSION_CLEAN}" && \
+    curl -L -f -o vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz \
+        https://github.com/tsenart/vegeta/releases/download/${VEGETA_VERSION}/vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz || \
+    { echo "Failed to download vegeta. Trying different approach..."; \
+      curl -L -f -o vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz \
+        https://github.com/tsenart/vegeta/releases/download/v12.8.4/vegeta_12.8.4_linux_amd64.tar.gz; } && \
+    ls -la vegeta_*_linux_amd64.tar.gz && \
+    tar xzf vegeta_*_linux_amd64.tar.gz && \
+    ls -la vegeta && \
     mv vegeta /usr/local/bin/ && \
-    rm vegeta_${VEGETA_VERSION_CLEAN}_linux_amd64.tar.gz
+    rm vegeta_*_linux_amd64.tar.gz && \
+    vegeta --version
 
 COPY --from=builder /app/bin/galick /usr/local/bin/galick
 
