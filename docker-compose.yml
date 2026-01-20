@@ -1,23 +1,24 @@
-version: '3'
+version: '3.8'
 
 services:
-  demo-server:
-    build:
-      context: .
-      dockerfile: Dockerfile.demo
-    ports:
-      - "8090:8080"
-
+  # Example of running a galick load test.
+  # This will build the local Dockerfile and run a test against httpbin.org.
+  #
+  # Usage:
+  #   docker-compose run --rm galick
+  #
+  # To test a local script, mount it as a volume:
+  #   docker-compose run --rm -v ./attack.star:/attack.star galick -s /attack.star -q 20
+  #
   galick:
     build:
       context: .
       dockerfile: Dockerfile
-    volumes:
-      - ./output:/data/output
-      - ./loadtest.yaml:/data/loadtest.yaml
-      - ./scripts:/scripts
-    environment:
-      - CI=false
-    depends_on:
-      - demo-server
-    command: ["run", "simple", "--env", "dev", "--config", "/data/loadtest.yaml"]
+    # The command to execute. Override this to run your own tests.
+    # We use --headless by default in Docker to keep logs clean and avoid TTY issues.
+    command: >
+      --url https://httpbin.org/get 
+      --qps 10 
+      --duration 5s 
+      --workers 5
+      --headless
