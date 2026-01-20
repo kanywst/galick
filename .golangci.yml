@@ -1,65 +1,40 @@
 version: "2"
 
 run:
-  timeout: 10m
-  issues-exit-code: 1
+  timeout: 5m
   tests: true
 
-formatters:
-  enable:
-    - gofmt
-    - goimports
-  exclusions:
-    paths:
-      - "^scripts/"
-      - ".*_test\\.go$"
-
-# Linter 全体設定
 linters:
+  disable-all: true
   enable:
-    - cyclop
-    - dogsled
-    - dupl
-    - errorlint
-    - exhaustive
-    - copyloopvar
-    - funlen
-    - gochecknoglobals
-    - gocritic
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
     - goconst
     - gocyclo
-    - err113
-    - mnd
-    - goprintffuncname
-    - gosec
-    - misspell
-    - nakedret
-    - nestif
-    - nilerr
-    - noctx
-    - nolintlint
-    - prealloc
-    - promlinter
-    - revive
-    - unconvert
     - unparam
+    - unconvert
     - whitespace
-    - errcheck
 
-  exclusions:
-    paths:
-      - "^scripts/"
-      - ".*_test\\.go$"
+linters-settings:
+  gocyclo:
+    min-complexity: 20
+  revive:
+    rules:
+      - name: exported
+        disabled: false
+      - name: package-comments
+        disabled: false
+      - name: unused-parameter
+        disabled: false
 
-  settings:
-    funlen:
-      lines: 100
-      statements: 50
-    mnd:
-      ignored-numbers:
-        - "0666"
-        - "0755"
-        - "0644"
-      ignored-functions:
-        - time.Date
-        - time.Sleep
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - revive

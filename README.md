@@ -1,276 +1,134 @@
-# Galick [![Build Status](https://github.com/kanywst/galick/actions/workflows/galick-ci.yml/badge.svg)](https://github.com/kanywst/galick/actions/workflows/galick-ci.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/kanywst/galick)](https://goreportcard.com/report/github.com/kanywst/galick) [![PkgGoDev](https://pkg.go.dev/badge/github.com/kanywst/galick)](https://pkg.go.dev/github.com/kanywst/galick)
+# Galick
 
-Galick is a versatile HTTP load‑testing wrapper around [Vegeta](https://github.com/tsenart/vegeta), adding centralized configuration, enhanced reporting, and CI/CD integration. Named after Vegeta's iconic attack, Galick brings Saiyan‑level power to your performance workflows.
+<div align="center">
+  <img src="demo.gif" width="100%" alt="Galick Demo" />
+</div>
 
-![Galick Gun](https://static.wikia.nocookie.net/dragonball/images/2/29/Garlic_Gun.png)
+<div align="center">
 
-## Features
+[![Go Report Card](https://goreportcard.com/badge/github.com/takumaniwa/galick)](https://goreportcard.com/report/github.com/takumaniwa/galick)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/takumaniwa/galick)](https://github.com/takumaniwa/galick)
+[![CI](https://github.com/takumaniwa/galick/actions/workflows/ci.yml/badge.svg)](https://github.com/takumaniwa/galick/actions/workflows/ci.yml)
 
-* **Command‑Line & Go Library**: Use as a CLI tool or import as a library
-* **Centralized YAML Config**: Define multiple environments and scenarios in one file
-* **Enhanced Reports**: HTML, JSON, and Markdown outputs with threshold markers
-* **Threshold Enforcement**: Exit non‑zero on SLA breaches for pipelines
-* **Pre/Post Hooks**: Run scripts before and after tests
-* **Reusable Templates**: Share scenarios across projects
-* **Environment Variables**: Override any setting with `GALICK_*`
+**The next-generation load testing tool for modern engineering teams.**
 
-## Install
+</div>
 
-### Using Kubernetes (Helm Chart)
+---
 
-The easiest way to run Galick on Kubernetes:
+**Galick** is a high-performance, extensible load testing tool written in Go. It synthesizes the best features of tools like *Vegeta*, *k6*, and *wrk* into a single, cohesive binary.
+
+## Why Galick?
+
+Most load testing tools force a trade-off:
+
+* **Vegeta** is fast and precise but **static** (can't easily generate random data).
+* **K6** is scriptable but **heavy** (JavaScript VM per user uses lots of RAM).
+* **Wrk** is fast but **complex** (requires Lua and is hard to extend).
+
+**Galick solves this by combining:**
+
+1. **Starlark Scripting:** Write dynamic scenarios in Python-like syntax without the overhead of a full JS VM.
+2. **Go Performance:** Uses Go's lightweight concurrency for high throughput.
+3. **Precise Pacing:** Distributed constant-rate pacing for accurate stress testing.
+
+## Installation
+
+### From Source
 
 ```bash
-# Quick demo test with built-in demo server
-helm install demo-test ./helm-chart/galick \
-  --set galick.demoServer.enabled=true
-
-# Monitor test execution
-kubectl logs -l app.kubernetes.io/name=galick -f
-
-# Check test results
-kubectl exec -it $(kubectl get pods -l app.kubernetes.io/name=galick -o jsonpath="{.items[0].metadata.name}") \
-  -- ls -la /data/output
+go install github.com/takumaniwa/galick/cmd/galick@latest
 ```
 
-For detailed Kubernetes deployment options, see [Helm Chart Usage Guide](docs/helm-chart-usage.md) and [Quick Start Guide](docs/quickstart.md).
-
-### Using Docker
-
-You can use Galick with Docker:
+### Docker
 
 ```bash
-# Build the Docker image
-docker build -t galick:latest .
-
-# Run load tests using Docker
-docker run -v $(pwd)/output:/data/output galick:latest run
-
-# Run with Docker Compose (includes demo server)
-docker-compose up
-```
-
-### Pre‑compiled Binaries
-
-Download the latest release for your platform from the [releases page](https://github.com/kanywst/galick/releases).
-
-### Using Go
-
-```bash
-# Vegeta (required)
-go install github.com/tsenart/vegeta@latest
-
-go install github.com/kanywst/galick@latest
-```
-
-### Building from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/kanywst/galick.git
-cd galick
-
-# Build with version information
-make build
-
-# The binary will be created at bin/galick
+docker pull ghcr.io/takumaniwa/galick:latest
+# or build locally
+docker build -t galick .
 ```
 
 ## Quick Start
 
-### 1. Initialize config
+### 1. Static Mode (Like Vegeta)
+
+Perfect for hitting a single endpoint with constant load.
 
 ```bash
-galick init
+galick --url https://api.example.com/v1/users \
+       --qps 50 \
+       --workers 10 \
+       --duration 30s
 ```
 
-Creates a starter `loadtest.yaml` in your current working directory.
+### 2. Dynamic Scripting Mode (Like K6)
 
-### 2. Run a load test
+Perfect for generating random data, dynamic paths, or complex payloads.
+
+Create a file named `attack.star`:
+
+```python
+# attack.star
+def request():
+    return {
+        "method": "POST",
+        "url": "https://httpbin.org/post",
+        "body": '{"user_id": 123, "timestamp": "now"}'
+    }
+```
+
+Run it:
 
 ```bash
-galick run           # default scenario & environment
-galick run heavy     # specify scenario
-GALICK_DEFAULT_ENVIRONMENT=staging galick run
+galick --script attack.star --qps 100 --duration 1m
 ```
 
-### 3. Generate reports
+### 3. Docker / CI Mode (Headless)
+
+For CI/CD pipelines or background jobs, use `--headless` to disable the TUI and output clean logs.
 
 ```bash
-galick report --format html --format markdown
-# results in output/<env>/<scenario>/
+galick --url https://api.example.com --headless
 ```
 
-## Configuration (loadtest.yaml)
-
-```yaml
-default:
-  environment: dev
-  scenario: simple
-  output_dir: output
-
-environments:
-  dev:
-    base_url: http://localhost:8080
-    headers:
-      Content-Type: application/json
-  staging:
-    base_url: https://staging.example.com
-    headers:
-      Authorization: Bearer TOKEN
-
-scenarios:
-  simple:
-    rate: 10/s
-    duration: 30s
-    targets:
-      - GET /api/health
-  heavy:
-    rate: 50/s
-    duration: 60s
-    targets:
-      - GET /api/products
-      - POST /api/orders
-
-report:
-  formats:
-    - html
-    - json
-  thresholds:
-    p95: 200ms
-    success_rate: 99.0
-
-hooks:
-  pre: ./scripts/pre-load.sh
-  post: ./scripts/post-load.sh
-```
-
-Targets use `METHOD /path`, prefixed by `base_url` from the specified environment.
-
-## Commands
-
-### `galick init`
-
-Creates a starter YAML configuration file in your current directory.
+Or using Docker Compose:
 
 ```bash
-galick init
+docker-compose run --rm galick
 ```
 
-### `galick run`
+## Options
 
-Execute load test based on your configuration.
+|     Flag     | Shorthand | Default |                 Description                 |
+| :----------: | :-------: | :-----: | :-----------------------------------------: |
+|   `--url`    |   `-u`    |    -    |        Target URL (for static mode)         |
+|  `--script`  |   `-s`    |    -    | Path to Starlark script (for dynamic mode)  |
+|  `--method`  |   `-m`    |  `GET`  |                 HTTP Method                 |
+|   `--qps`    |   `-q`    |  `50`   |             Queries Per Second              |
+| `--workers`  |   `-w`    |  `10`   |        Number of concurrent workers         |
+| `--duration` |   `-d`    |  `10s`  |            Duration of the test             |
+| `--headless` |           | `false` | Run without TUI (recommended for CI/Docker) |
 
-```bash
-galick run [<scenario>]
-```
+## Architecture
 
-Flags:
+Galick is built on a modular engine:
 
-* `--env, -e`: Environment to use (overrides configuration default)
-* `--output-dir, -o`: Output directory (overrides configuration default)
-* `--config`: Path to config file (default is ./loadtest.yaml)
-* `--ci`: Enable CI mode (exit with non-zero code on threshold violations)
-
-### `galick report`
-
-Generate reports from existing test results.
-
-```bash
-galick report --results <results-file> [--format html|json|markdown]
-```
-
-Flags:
-
-* `--results, -r`: Path to the results file
-* `--dir, -d`: Directory to save reports (defaults to same directory as results)
-* `--type, -t`: Report type (json, text, markdown, html)
-
-### `galick version`
-
-Display version information.
-
-```bash
-galick version
-```
-
-## Usage: CI/CD Integration
-
-Galick is designed to integrate smoothly with CI/CD pipelines. Here's an example GitHub Actions workflow:
-
-```yaml
-name: Load Test
-on: [push, pull_request]
-jobs:
-  load-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-      - name: Install Vegeta
-        run: |
-          wget https://github.com/tsenart/vegeta/releases/download/v12.12.0/vegeta_12.12.0_linux_amd64.tar.gz
-          tar xzf vegeta_*.tar.gz && sudo mv vegeta /usr/local/bin/
-      - name: Install Galick
-        run: |
-          make build
-          sudo mv bin/galick /usr/local/bin/
-      - name: Run Load Tests
-        run: CI=true galick run
-      - name: Upload Reports
-        uses: actions/upload-artifact@v3
-        with:
-          name: load-test-reports
-          path: output/
-```
-
-## Usage: Distributed Load Testing
-
-For high-scale tests, Galick can be used in a distributed manner, similar to Vegeta. By splitting the load across multiple machines and then aggregating the results, you can achieve much higher request rates.
-
-Example using multiple machines with a shared config:
-
-1. Setup the same configuration on all machines
-2. Run with different output directories on each machine
-3. Gather the results
-4. Generate combined reports
-
-```bash
-# On machine 1
-galick run heavy --output-dir output/machine1
-
-# On machine 2
-galick run heavy --output-dir output/machine2
-
-# Aggregate results (manual step)
-```
-
-## Development
-
-### Requirements
-
-- Go 1.24 or higher
-- Vegeta v12.12.0 or higher
-
-### Setup Development Environment
-
-```bash
-# Install development dependencies
-make setup-dev
-```
-
-### Run Tests
-
-```bash
-make test
-```
+1. **Attacker Interface:** Pluggable protocols (HTTP, Starlark Script).
+2. **Engine:** Manages concurrency and pacing.
+3. **Metrics:** Thread-safe, HdrHistogram for accurate P99 latency.
+4. **Reporter:** Beautiful TUI powered by Bubbletea.
 
 ## Contributing
 
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md)
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## License
 
-See [LICENSE](LICENSE).
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
