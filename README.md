@@ -6,10 +6,10 @@
 
 <div align="center">
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/takumaniwa/galick)](https://goreportcard.com/report/github.com/takumaniwa/galick)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kanywst/galick)](https://goreportcard.com/report/github.com/kanywst/galick)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/takumaniwa/galick)](https://github.com/takumaniwa/galick)
-[![CI](https://github.com/takumaniwa/galick/actions/workflows/ci.yml/badge.svg)](https://github.com/takumaniwa/galick/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/kanywst/galick)](https://github.com/kanywst/galick)
+[![CI](https://github.com/kanywst/galick/actions/workflows/ci.yml/badge.svg)](https://github.com/kanywst/galick/actions/workflows/ci.yml)
 
 **The next-generation load testing tool for modern engineering teams.**
 
@@ -38,15 +38,23 @@ Most load testing tools force a trade-off:
 ### From Source
 
 ```bash
-go install github.com/takumaniwa/galick/cmd/galick@latest
+go install github.com/kanywst/galick/cmd/galick@latest
 ```
 
 ### Docker
 
 ```bash
-docker pull ghcr.io/takumaniwa/galick:latest
-# or build locally
-docker build -t galick .
+docker pull ghcr.io/kanywst/galick:latest
+```
+
+You can run Galick directly using Docker:
+
+```bash
+# Basic usage
+docker run --rm ghcr.io/kanywst/galick:latest --url https://example.com --qps 10 --duration 10s --headless
+
+# Running a local script
+docker run --rm -v $(pwd)/attack.star:/attack.star ghcr.io/kanywst/galick:latest --script /attack.star --headless
 ```
 
 ## Quick Start
