@@ -1,20 +1,22 @@
-package metrics
+package metrics_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/kanywst/galick/pkg/metrics"
 )
 
 func TestStats(t *testing.T) {
-	s := NewStats()
+	s := metrics.NewStats()
 
 	// Add some dummy data
-	s.Add(Result{
+	s.Add(metrics.Result{
 		Latency:  10 * time.Millisecond,
 		BytesIn:  100,
 		Code:     200,
 	})
-	s.Add(Result{
+	s.Add(metrics.Result{
 		Latency:  20 * time.Millisecond,
 		BytesIn:  200,
 		Code:     500,

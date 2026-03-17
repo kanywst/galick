@@ -76,23 +76,29 @@ func (s *Attacker) Attack(ctx context.Context) metrics.Result {
 	url := ""
 	var body io.Reader
 
+	var headers *starlark.Dict
+
 	for _, item := range dict.Items() {
 		k, ok := item[0].(starlark.String)
 		if !ok {
 			continue
 		}
-		switch k.String() {
+		switch k.GoString() {
 		case "method":
 			if v, ok := item[1].(starlark.String); ok {
-				method = string(v)
+				method = v.GoString()
 			}
 		case "url":
 			if v, ok := item[1].(starlark.String); ok {
-				url = string(v)
+				url = v.GoString()
 			}
 		case "body":
 			if v, ok := item[1].(starlark.String); ok {
-				body = strings.NewReader(string(v))
+				body = strings.NewReader(v.GoString())
+			}
+		case "headers":
+			if v, ok := item[1].(*starlark.Dict); ok {
+				headers = v
 			}
 		}
 	}
@@ -104,6 +110,20 @@ func (s *Attacker) Attack(ctx context.Context) metrics.Result {
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return metrics.Result{Timestamp: start, Error: err.Error(), Latency: time.Since(start)}
+	}
+
+	if headers != nil {
+		for _, item := range headers.Items() {
+			k, ok := item[0].(starlark.String)
+			if !ok {
+				continue
+			}
+			v, ok := item[1].(starlark.String)
+			if !ok {
+				continue
+			}
+			req.Header.Set(k.GoString(), v.GoString())
+		}
 	}
 
 	resp, err := s.client.Do(req)

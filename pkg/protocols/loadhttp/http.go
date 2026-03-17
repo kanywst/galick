@@ -14,26 +14,28 @@ import (
 
 // Attacker implements the Attacker interface for HTTP.
 type Attacker struct {
-	client *http.Client
-	method string
-	url    string
+	client  *http.Client
+	method  string
+	url     string
+	headers map[string]string
 }
 
 // NewAttacker creates a new HTTP Attacker.
-func NewAttacker(method, url string, timeout time.Duration, insecure bool) protocols.Attacker {
+func NewAttacker(method, url string, timeout time.Duration, insecure bool, headers map[string]string) protocols.Attacker {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
 		MaxIdleConns:    1000,
 		MaxConnsPerHost: 1000,
 	}
-	
+
 	return &Attacker{
 		client: &http.Client{
 			Transport: tr,
 			Timeout:   timeout,
 		},
-		method: method,
-		url:    url,
+		method:  method,
+		url:     url,
+		headers: headers,
 	}
 }
 
@@ -53,6 +55,10 @@ func (h *Attacker) Attack(ctx context.Context) metrics.Result {
 			Error:     err.Error(),
 			Latency:   time.Since(start),
 		}
+	}
+
+	for k, v := range h.headers {
+		req.Header.Set(k, v)
 	}
 
 	resp, err := h.client.Do(req)
