@@ -1,6 +1,5 @@
 # Compiled binaries
-galick
-main
+/galick
 bin/
 *.exe
 *.dll

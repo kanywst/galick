@@ -96,11 +96,11 @@ func (m Model) View() string {
 	s.WriteString("\n  Galick Load Test Running...\n\n")
 	
 	// Stats Grid
-	s.WriteString(fmt.Sprintf("  Requests: %d\n", stats.TotalRequests))
-	s.WriteString(fmt.Sprintf("  Success:  %d\n", stats.SuccessCount))
-	s.WriteString(fmt.Sprintf("  Errors:   %d\n", stats.ErrorCount))
-	s.WriteString(fmt.Sprintf("  QPS:      %.2f\n", currentQPS))
-	s.WriteString(fmt.Sprintf("  P99:      %v\n", stats.P99()))
+	fmt.Fprintf(&s, "  Requests: %d\n", stats.TotalRequests)
+	fmt.Fprintf(&s, "  Success:  %d\n", stats.SuccessCount)
+	fmt.Fprintf(&s, "  Errors:   %d\n", stats.ErrorCount)
+	fmt.Fprintf(&s, "  QPS:      %.2f\n", currentQPS)
+	fmt.Fprintf(&s, "  P99:      %v\n", stats.P99())
 	s.WriteString("\n")
 	
 	s.WriteString("  " + m.progress.View() + "\n")
@@ -132,20 +132,20 @@ func GenerateTextReport(eng *engine.Engine, start time.Time) string {
 	s.WriteString("\n")
 	s.WriteString(style.Render(" TEST COMPLETED "))
 	s.WriteString("\n\n")
-	s.WriteString(fmt.Sprintf("  Duration:   %v\n", elapsed))
-	s.WriteString(fmt.Sprintf("  Requests:   %d\n", stats.TotalRequests))
-	s.WriteString(fmt.Sprintf("  Mean QPS:   %.2f\n", avgQPS))
+	fmt.Fprintf(&s, "  Duration:   %v\n", elapsed)
+	fmt.Fprintf(&s, "  Requests:   %d\n", stats.TotalRequests)
+	fmt.Fprintf(&s, "  Mean QPS:   %.2f\n", avgQPS)
 	if stats.TotalRequests > 0 {
-		s.WriteString(fmt.Sprintf("  Success:    %.2f%%\n", float64(stats.SuccessCount)/float64(stats.TotalRequests)*100))
+		fmt.Fprintf(&s, "  Success:    %.2f%%\n", float64(stats.SuccessCount)/float64(stats.TotalRequests)*100)
 	} else {
 		s.WriteString("  Success:    0.00%\n")
 	}
-	
+
 	if stats.TotalRequests > 0 {
-		s.WriteString(fmt.Sprintf("  P50 Latency: %v\n", time.Duration(stats.Histogram.ValueAtQuantile(50))*time.Microsecond))
-		s.WriteString(fmt.Sprintf("  P95 Latency: %v\n", stats.P95()))
-		s.WriteString(fmt.Sprintf("  P99 Latency: %v\n", stats.P99()))
-		s.WriteString(fmt.Sprintf("  Max Latency: %v\n", stats.Max()))
+		fmt.Fprintf(&s, "  P50 Latency: %v\n", time.Duration(stats.Histogram.ValueAtQuantile(50))*time.Microsecond)
+		fmt.Fprintf(&s, "  P95 Latency: %v\n", stats.P95())
+		fmt.Fprintf(&s, "  P99 Latency: %v\n", stats.P99())
+		fmt.Fprintf(&s, "  Max Latency: %v\n", stats.Max())
 	}
 	s.WriteString("\n")
 
