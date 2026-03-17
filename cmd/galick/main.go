@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,6 +34,7 @@ var (
 	timeout    time.Duration
 	headless   bool
 	insecure   bool
+	rawHeaders []string
 )
 
 func main() {
@@ -58,7 +60,7 @@ Examples:
 			var err error
 
 			if scriptPath != "" {
-				attacker, err = script.NewScriptAttacker(scriptPath, timeout, insecure)
+				attacker, err = script.NewScriptAttacker(scriptPath, timeout, insecure, workers)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Error loading script: %v\n", err)
 					os.Exit(1)
@@ -68,7 +70,21 @@ Examples:
 					fmt.Fprintln(os.Stderr, "Error: --url is required unless --script is provided")
 					os.Exit(1)
 				}
-				attacker = loadhttp.NewAttacker(method, targetURL, timeout, insecure)
+				headers := make(map[string]string)
+				for _, h := range rawHeaders {
+					k, v, ok := strings.Cut(h, ":")
+					if !ok {
+						fmt.Fprintf(os.Stderr, "Error: invalid header format %q (expected Key:Value)\n", h)
+						os.Exit(1)
+					}
+					key := strings.TrimSpace(k)
+					if key == "" {
+						fmt.Fprintf(os.Stderr, "Error: invalid header: key cannot be empty in %q\n", h)
+						os.Exit(1)
+					}
+					headers[key] = strings.TrimSpace(v)
+				}
+				attacker = loadhttp.NewAttacker(method, targetURL, timeout, insecure, headers, workers)
 			}
 
 			// Initialize Engine
@@ -127,6 +143,7 @@ Examples:
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 10*time.Second, "Timeout for each request")
 	rootCmd.Flags().BoolVar(&headless, "headless", false, "Run without TUI (useful for CI/Docker)")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "k", false, "Skip TLS certificate verification")
+	rootCmd.Flags().StringArrayVarP(&rawHeaders, "header", "H", nil, "Custom header (e.g. -H 'Content-Type:application/json')")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Execution failed: %v\n", err)

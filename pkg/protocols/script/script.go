@@ -23,7 +23,7 @@ type Attacker struct {
 }
 
 // NewScriptAttacker creates a new Starlark script attacker.
-func NewScriptAttacker(scriptPath string, timeout time.Duration, insecure bool) (protocols.Attacker, error) {
+func NewScriptAttacker(scriptPath string, timeout time.Duration, insecure bool, workers int) (protocols.Attacker, error) {
 	thread := &starlark.Thread{Name: "main"}
 	opts := &syntax.FileOptions{}
 	globals, err := starlark.ExecFileOptions(opts, thread, scriptPath, nil, nil)
@@ -37,9 +37,9 @@ func NewScriptAttacker(scriptPath string, timeout time.Duration, insecure bool) 
 	}
 
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
-		MaxIdleConns:    1000,
-		MaxConnsPerHost: 1000,
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: insecure},
+		MaxIdleConns:       workers,
+		MaxIdleConnsPerHost: workers,
 	}
 
 	return &Attacker{
@@ -56,59 +56,115 @@ func (s *Attacker) Name() string {
 	return "script"
 }
 
-// Attack performs a single request by executing the Starlark script.
-func (s *Attacker) Attack(ctx context.Context) metrics.Result {
-	start := time.Now()
+// requestSpec holds the parsed fields from a Starlark request() return value.
+type requestSpec struct {
+	method  string
+	url     string
+	body    io.Reader
+	headers *starlark.Dict
+}
 
-	thread := &starlark.Thread{Name: "worker"}
-	
-	res, err := starlark.Call(thread, s.requestFn, nil, nil)
-	if err != nil {
-		return metrics.Result{Timestamp: start, Error: fmt.Sprintf("script error: %v", err), Latency: time.Since(start)}
-	}
-
-	dict, ok := res.(*starlark.Dict)
-	if !ok {
-		return metrics.Result{Timestamp: start, Error: "script must return a dict", Latency: time.Since(start)}
-	}
-
-	method := "GET"
-	url := ""
-	var body io.Reader
-
+// parseRequestDict extracts method, url, body, and headers from a Starlark dict.
+func parseRequestDict(dict *starlark.Dict) (requestSpec, error) {
+	spec := requestSpec{method: "GET"}
 	for _, item := range dict.Items() {
 		k, ok := item[0].(starlark.String)
 		if !ok {
 			continue
 		}
-		switch k.String() {
+		switch k.GoString() {
 		case "method":
-			if v, ok := item[1].(starlark.String); ok {
-				method = string(v)
+			v, ok := item[1].(starlark.String)
+			if !ok {
+				return spec, fmt.Errorf("script returned 'method' with non-string value")
 			}
+			spec.method = v.GoString()
 		case "url":
-			if v, ok := item[1].(starlark.String); ok {
-				url = string(v)
+			v, ok := item[1].(starlark.String)
+			if !ok {
+				return spec, fmt.Errorf("script returned 'url' with non-string value")
 			}
+			spec.url = v.GoString()
 		case "body":
-			if v, ok := item[1].(starlark.String); ok {
-				body = strings.NewReader(string(v))
+			v, ok := item[1].(starlark.String)
+			if !ok {
+				return spec, fmt.Errorf("script returned 'body' with non-string value")
 			}
+			spec.body = strings.NewReader(v.GoString())
+		case "headers":
+			v, ok := item[1].(*starlark.Dict)
+			if !ok {
+				return spec, fmt.Errorf("script returned 'headers' with non-dict value")
+			}
+			spec.headers = v
 		}
 	}
+	return spec, nil
+}
 
-	if url == "" {
-		return metrics.Result{Timestamp: start, Error: "script returned empty url", Latency: time.Since(start)}
+// applyHeaders sets headers from a Starlark dict onto an http.Request.
+func applyHeaders(req *http.Request, headers *starlark.Dict) error {
+	for _, item := range headers.Items() {
+		k, ok := item[0].(starlark.String)
+		if !ok {
+			return fmt.Errorf("script returned header with non-string key")
+		}
+		v, ok := item[1].(starlark.String)
+		if !ok {
+			return fmt.Errorf("script returned header with non-string value")
+		}
+		keyStr := k.GoString()
+		if keyStr == "" {
+			return fmt.Errorf("script returned header with empty key")
+		}
+		req.Header.Set(keyStr, v.GoString())
+	}
+	return nil
+}
+
+// errResult creates an error metrics.Result from the given start time and message.
+func errResult(start time.Time, msg string) metrics.Result {
+	return metrics.Result{Timestamp: start, Error: msg, Latency: time.Since(start)}
+}
+
+// Attack performs a single request by executing the Starlark script.
+func (s *Attacker) Attack(ctx context.Context) metrics.Result {
+	start := time.Now()
+
+	thread := &starlark.Thread{Name: "worker"}
+
+	res, err := starlark.Call(thread, s.requestFn, nil, nil)
+	if err != nil {
+		return errResult(start, fmt.Sprintf("script error: %v", err))
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	dict, ok := res.(*starlark.Dict)
+	if !ok {
+		return errResult(start, "script must return a dict")
+	}
+
+	spec, err := parseRequestDict(dict)
 	if err != nil {
-		return metrics.Result{Timestamp: start, Error: err.Error(), Latency: time.Since(start)}
+		return errResult(start, err.Error())
+	}
+	if spec.url == "" {
+		return errResult(start, "script returned empty url")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, spec.method, spec.url, spec.body)
+	if err != nil {
+		return errResult(start, err.Error())
+	}
+
+	if spec.headers != nil {
+		if err := applyHeaders(req, spec.headers); err != nil {
+			return errResult(start, err.Error())
+		}
 	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return metrics.Result{Timestamp: start, Error: err.Error(), Latency: time.Since(start)}
+		return errResult(start, err.Error())
 	}
 	defer func() {
 		_ = resp.Body.Close()

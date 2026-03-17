@@ -47,19 +47,17 @@ func (e *Engine) Run(ctx context.Context) {
 	ticks := make(chan struct{})
 
 	// Start workers
-	// Each worker waits for a tick and performs an attack
+	// Each worker waits for a tick and performs an attack.
+	// Workers use ctx (not runCtx) for Attack so that in-flight requests
+	// are not cancelled when the test duration expires. The HTTP client's
+	// own timeout handles per-request deadlines.
 	for i := 0; i < e.workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for {
-				select {
-				case <-runCtx.Done():
-					return
-				case <-ticks:
-					res := e.attacker.Attack(runCtx)
-					e.stats.Add(res)
-				}
+			for range ticks {
+				res := e.attacker.Attack(ctx)
+				e.stats.Add(res)
 			}
 		}()
 	}

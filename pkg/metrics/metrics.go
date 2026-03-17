@@ -1,5 +1,5 @@
 // Package metrics provides thread-safe statistics collection and reporting.
-package metrics
+package metrics //nolint:revive // metrics is the canonical name for this package
 
 import (
 	"sync"
