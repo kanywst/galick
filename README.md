@@ -70,6 +70,15 @@ galick --url https://api.example.com/v1/users \
        --duration 30s
 ```
 
+You can add custom headers with the `-H` flag:
+
+```bash
+galick --url https://api.example.com/v1/users \
+       --qps 50 \
+       -H 'Authorization:Bearer <token>' \
+       -H 'Content-Type:application/json'
+```
+
 ### 2. Dynamic Scripting Mode (Like K6)
 
 Perfect for generating random data, dynamic paths, or complex payloads.
@@ -82,7 +91,11 @@ def request():
     return {
         "method": "POST",
         "url": "https://httpbin.org/post",
-        "body": '{"user_id": 123, "timestamp": "now"}'
+        "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer <token>",
+        },
+        "body": '{"user_id": 123, "timestamp": "now"}',
     }
 ```
 
@@ -113,10 +126,13 @@ docker-compose run --rm galick
 |   `--url`    |   `-u`    |    -    |        Target URL (for static mode)         |
 |  `--script`  |   `-s`    |    -    | Path to Starlark script (for dynamic mode)  |
 |  `--method`  |   `-m`    |  `GET`  |                 HTTP Method                 |
+|  `--header`  |   `-H`    |    -    | Custom header (e.g. `-H 'Key:Value'`)       |
 |   `--qps`    |   `-q`    |  `50`   |             Queries Per Second              |
 | `--workers`  |   `-w`    |  `10`   |        Number of concurrent workers         |
 | `--duration` |   `-d`    |  `10s`  |            Duration of the test             |
+| `--timeout`  |   `-t`    |  `10s`  |         Timeout for each request            |
 | `--headless` |           | `false` | Run without TUI (recommended for CI/Docker) |
+| `--insecure` |   `-k`    | `false` |      Skip TLS certificate verification      |
 
 ## Architecture
 

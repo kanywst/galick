@@ -4,7 +4,7 @@
 def request():
     """
     This function is called for every request.
-    It must return a dictionary with 'method', 'url', and optionally 'body'.
+    It must return a dictionary with 'method', 'url', and optionally 'headers' and 'body'.
     """
     # You could use random data here if needed
     user_id = 123
